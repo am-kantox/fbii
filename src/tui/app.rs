@@ -24,6 +24,7 @@ pub enum AppMode {
     Reader,
     SearchInput,
     CommandInput,
+    OpenFileInput,
 }
 
 pub struct App {
@@ -91,7 +92,11 @@ impl App {
     pub fn handle_action(&mut self, action: KeyAction) {
         match action {
             KeyAction::Quit => {
-                if self.reader_view.show_bookmarks {
+                if self.reader_view.show_themes {
+                    self.reader_view.show_themes = false;
+                } else if self.reader_view.show_info {
+                    self.reader_view.show_info = false;
+                } else if self.reader_view.show_bookmarks {
                     self.reader_view.show_bookmarks = false;
                 } else if self.reader_view.show_toc {
                     self.reader_view.show_toc = false;
@@ -101,6 +106,27 @@ impl App {
                     self.mode = AppMode::Library;
                 } else {
                     self.is_running = false;
+                }
+            }
+            KeyAction::OpenFile => {
+                self.input_buffer.clear();
+                self.mode = AppMode::OpenFileInput;
+            }
+            KeyAction::Info => {
+                if self.mode == AppMode::Reader {
+                    self.reader_view.show_info = !self.reader_view.show_info;
+                }
+            }
+            KeyAction::SaveToLibrary => {
+                if let (Some(book), Some(layout)) = (&self.active_book, &self.active_layout) {
+                    let offset = self.reader_view.scroll_offset;
+                    let total = layout.lines.len().max(1);
+                    let percent = (offset as f64 / total as f64) * 100.0;
+                    let book_clone = book.clone();
+                    let db = self.db.clone();
+                    tokio::spawn(async move {
+                        let _ = db.upsert_book(&book_clone, offset, percent).await;
+                    });
                 }
             }
             KeyAction::Search => {
@@ -172,7 +198,14 @@ impl App {
                 }
             }
             KeyAction::Select => {
-                if self.mode == AppMode::Library && !self.library_books.is_empty() {
+                if self.reader_view.show_themes {
+                    let idx = self.reader_view.theme_state.selected().unwrap_or(0);
+                    if let Some(&name) = crate::themes::THEME_NAMES.get(idx) {
+                        self.config.theme = name.to_string();
+                        self.theme = Theme::get_by_name(name);
+                    }
+                    self.reader_view.show_themes = false;
+                } else if self.mode == AppMode::Library && !self.library_books.is_empty() {
                     let idx = self.library_view.state.selected().unwrap_or(0);
                     if let Some(db_book) = self.library_books.get(idx) {
                         let path = std::path::PathBuf::from(&db_book.file_path);
@@ -203,7 +236,12 @@ impl App {
                 }
             }
             KeyAction::ScrollDown => {
-                if self.mode == AppMode::Reader {
+                if self.reader_view.show_themes {
+                    let idx = self.reader_view.theme_state.selected().unwrap_or(0);
+                    if idx + 1 < crate::themes::THEME_NAMES.len() {
+                        self.reader_view.theme_state.select(Some(idx + 1));
+                    }
+                } else if self.mode == AppMode::Reader {
                     if self.reader_view.show_bookmarks {
                         let idx = self.reader_view.bookmark_state.selected().unwrap_or(0);
                         if idx + 1 < self.reader_view.bookmark_items.len() {
@@ -229,7 +267,12 @@ impl App {
                 }
             }
             KeyAction::ScrollUp => {
-                if self.mode == AppMode::Reader {
+                if self.reader_view.show_themes {
+                    let idx = self.reader_view.theme_state.selected().unwrap_or(0);
+                    self.reader_view
+                        .theme_state
+                        .select(Some(idx.saturating_sub(1)));
+                } else if self.mode == AppMode::Reader {
                     if self.reader_view.show_bookmarks {
                         let idx = self.reader_view.bookmark_state.selected().unwrap_or(0);
                         self.reader_view
@@ -308,7 +351,9 @@ impl App {
                     self.active_layout = Some(layout);
                 }
             }
-            _ => {}
+            KeyAction::ToggleCss => {
+                self.config.display.respect_epub_css = !self.config.display.respect_epub_css;
+            }
         }
     }
 
@@ -355,6 +400,13 @@ impl App {
                         }
                     }
                     AppMode::CommandInput => {
+                        if let (Some(book), Some(layout)) = (&self.active_book, &self.active_layout)
+                        {
+                            self.reader_view.render(f, area, book, layout, &self.theme);
+                        } else {
+                            self.library_view
+                                .render(f, area, &self.library_books, &self.theme);
+                        }
                         let chunks = ratatui::layout::Layout::default()
                             .direction(ratatui::layout::Direction::Vertical)
                             .constraints([
@@ -367,6 +419,28 @@ impl App {
                                 .style(self.theme.status_style());
                         f.render_widget(prompt, chunks[1]);
                     }
+                    AppMode::OpenFileInput => {
+                        let chunks = ratatui::layout::Layout::default()
+                            .direction(ratatui::layout::Direction::Vertical)
+                            .constraints([
+                                ratatui::layout::Constraint::Min(1),
+                                ratatui::layout::Constraint::Length(1),
+                            ])
+                            .split(area);
+                        if let (Some(book), Some(layout)) = (&self.active_book, &self.active_layout)
+                        {
+                            self.reader_view.render(f, area, book, layout, &self.theme);
+                        } else {
+                            self.library_view
+                                .render(f, area, &self.library_books, &self.theme);
+                        }
+                        let prompt = ratatui::widgets::Paragraph::new(format!(
+                            "Open File: {}",
+                            self.input_buffer
+                        ))
+                        .style(self.theme.status_style());
+                        f.render_widget(prompt, chunks[1]);
+                    }
                 }
             })?;
 
@@ -374,6 +448,36 @@ impl App {
                 Some(Ok(event)) = event_stream.next() => {
                     if let Event::Key(key_event) = event {
                         match self.mode {
+                            AppMode::OpenFileInput => {
+                                match key_event.code {
+                                    crossterm::event::KeyCode::Enter => {
+                                        let path_str = self.input_buffer.trim().to_string();
+                                        self.input_buffer.clear();
+                                        let path = std::path::PathBuf::from(&path_str);
+                                        if let Ok(book) = crate::formats::parse_book_file(&path) {
+                                            self.load_book(book);
+                                            let book_clone = self.active_book.clone().unwrap();
+                                            let db = self.db.clone();
+                                            tokio::spawn(async move {
+                                                let _ = db.upsert_book(&book_clone, 0, 0.0).await;
+                                            });
+                                        } else {
+                                            self.mode = AppMode::Library;
+                                        }
+                                    }
+                                    crossterm::event::KeyCode::Esc => {
+                                        self.input_buffer.clear();
+                                        self.mode = AppMode::Library;
+                                    }
+                                    crossterm::event::KeyCode::Backspace => {
+                                        self.input_buffer.pop();
+                                    }
+                                    crossterm::event::KeyCode::Char(c) => {
+                                        self.input_buffer.push(c);
+                                    }
+                                    _ => {}
+                                }
+                            }
                             AppMode::SearchInput => {
                                 match key_event.code {
                                     crossterm::event::KeyCode::Enter => {
@@ -407,18 +511,72 @@ impl App {
                                     crossterm::event::KeyCode::Enter => {
                                         let cmd = self.input_buffer.trim().to_string();
                                         self.input_buffer.clear();
-                                        self.mode = AppMode::Reader;
+                                        let default_mode = if self.active_book.is_some() {
+                                            AppMode::Reader
+                                        } else {
+                                            AppMode::Library
+                                        };
+                                        self.mode = default_mode;
+
                                         if cmd == "q" || cmd == "quit" {
+                                            if self.mode == AppMode::Reader {
+                                                self.mode = AppMode::Library;
+                                            } else {
+                                                self.is_running = false;
+                                            }
+                                        } else if cmd == "qa" || cmd == "quitall" {
                                             self.is_running = false;
-                                        } else if cmd == "toc" {
+                                        } else if cmd == "themes" || cmd == "theme" {
+                                            self.reader_view.show_themes = true;
+                                        } else if let Some(theme_name) = cmd.strip_prefix("theme ") {
+                                            self.config.theme = theme_name.trim().to_string();
+                                            self.theme = Theme::get_by_name(theme_name.trim());
+                                        } else if let Some(path_str) = cmd.strip_prefix("open ").or_else(|| cmd.strip_prefix("o ")) {
+                                            let path = std::path::PathBuf::from(path_str.trim());
+                                            if let Ok(book) = crate::formats::parse_book_file(&path) {
+                                                self.load_book(book);
+                                                let book_clone = self.active_book.clone().unwrap();
+                                                let db = self.db.clone();
+                                                tokio::spawn(async move {
+                                                    let _ = db.upsert_book(&book_clone, 0, 0.0).await;
+                                                });
+                                            }
+                                        } else if cmd == "w" || cmd == "save" {
+                                            self.handle_action(KeyAction::SaveToLibrary);
+                                        } else if cmd == "b" || cmd == "bookmark" {
+                                            self.handle_action(KeyAction::AddBookmark);
+                                        } else if cmd == "bl" || cmd == "bookmarks" {
+                                            self.handle_action(KeyAction::ListBookmarks);
+                                        } else if cmd == "toc" || cmd == "t" {
                                             self.reader_view.show_toc = true;
-                                        } else if cmd == "help" {
+                                        } else if cmd == "info" || cmd == "i" {
+                                            self.reader_view.show_info = true;
+                                        } else if cmd == "help" || cmd == "h" {
                                             self.reader_view.show_help = true;
+                                        } else if cmd == "simple" || cmd == "s" {
+                                            self.handle_action(KeyAction::ToggleSimpleMode);
+                                        } else if cmd == "css" {
+                                            self.handle_action(KeyAction::ToggleCss);
+                                        } else if let Ok(line_num) = cmd.parse::<usize>() {
+                                            if line_num > 0 {
+                                                self.reader_view.scroll_offset = line_num.saturating_sub(1);
+                                            }
+                                        } else if let Some(num_str) = cmd.strip_prefix("goto ") {
+                                            if let Ok(line_num) = num_str.trim().parse::<usize>() {
+                                                if line_num > 0 {
+                                                    self.reader_view.scroll_offset = line_num.saturating_sub(1);
+                                                }
+                                            }
                                         }
                                     }
                                     crossterm::event::KeyCode::Esc => {
                                         self.input_buffer.clear();
-                                        self.mode = AppMode::Reader;
+                                        let default_mode = if self.active_book.is_some() {
+                                            AppMode::Reader
+                                        } else {
+                                            AppMode::Library
+                                        };
+                                        self.mode = default_mode;
                                     }
                                     crossterm::event::KeyCode::Backspace => {
                                         self.input_buffer.pop();

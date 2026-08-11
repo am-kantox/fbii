@@ -118,6 +118,17 @@ async fn test_app_action_handling() {
     app.handle_action(KeyAction::GotoTop);
     assert_eq!(app.reader_view.scroll_offset, 0);
 
+    // Test Info modal toggle
+    app.handle_action(KeyAction::Info);
+    assert!(app.reader_view.show_info);
+    app.handle_action(KeyAction::Quit);
+    assert!(!app.reader_view.show_info);
+
+    // Test OpenFile action
+    app.handle_action(KeyAction::OpenFile);
+    assert_eq!(app.mode, AppMode::OpenFileInput);
+    app.mode = AppMode::Reader;
+
     // Test TOC modal toggle
     app.handle_action(KeyAction::Toc);
     assert!(app.reader_view.show_toc);

@@ -86,8 +86,10 @@ impl Default for KeyMap {
     fn default() -> Self {
         let mut bindings = HashMap::new();
         bindings.insert("j".to_string(), KeyAction::ScrollDown);
+        bindings.insert("l".to_string(), KeyAction::ScrollDown);
         bindings.insert("Down".to_string(), KeyAction::ScrollDown);
         bindings.insert("k".to_string(), KeyAction::ScrollUp);
+        bindings.insert("h".to_string(), KeyAction::ScrollUp);
         bindings.insert("Up".to_string(), KeyAction::ScrollUp);
         bindings.insert("ctrl+f".to_string(), KeyAction::PageDown);
         bindings.insert("PageDown".to_string(), KeyAction::PageDown);

@@ -1,5 +1,15 @@
 use ratatui::style::{Color, Modifier, Style};
 
+pub const THEME_NAMES: &[&str] = &[
+    "nord-dark",
+    "nord-light",
+    "auto",
+    "dracula",
+    "monokai",
+    "github-dark",
+    "github-light",
+];
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Theme {
     pub name: String,
