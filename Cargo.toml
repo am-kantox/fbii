@@ -1,0 +1,29 @@
+[package]
+name = "tabook"
+version = "0.1.0"
+edition = "2021"
+authors = ["Tabook Authors"]
+description = "A terminal e-book reader for FB2, FB2-in-ZIP and EPUB with vim-like controls built in Rust"
+license = "MIT"
+
+[dependencies]
+tokio = { version = "1.38", features = ["full"] }
+ratatui = "0.29"
+crossterm = { version = "0.28", features = ["event-stream"] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "chrono"] }
+clap = { version = "4.5", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+dirs = "5.0"
+roxmltree = "0.20"
+zip = "2.2"
+encoding_rs = "0.8"
+unicode-width = "0.2"
+unicode-normalization = "0.1"
+ratatui-image = "3.0"
+thiserror = "2.0"
+anyhow = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+tempfile = "3"
