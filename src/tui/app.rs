@@ -393,6 +393,7 @@ impl App {
                                     ratatui::layout::Constraint::Length(1),
                                 ])
                                 .split(area);
+                            f.render_widget(ratatui::widgets::Clear, chunks[1]);
                             let prompt =
                                 ratatui::widgets::Paragraph::new(format!("/{}", self.input_buffer))
                                     .style(self.theme.status_style());
@@ -418,6 +419,7 @@ impl App {
                                 ratatui::layout::Constraint::Length(1),
                             ])
                             .split(area);
+                        f.render_widget(ratatui::widgets::Clear, chunks[1]);
                         let prompt =
                             ratatui::widgets::Paragraph::new(format!(":{}", self.input_buffer))
                                 .style(self.theme.status_style());
@@ -442,6 +444,7 @@ impl App {
                             self.library_view
                                 .render(f, area, &self.library_books, &self.theme);
                         }
+                        f.render_widget(ratatui::widgets::Clear, chunks[1]);
                         let prompt = ratatui::widgets::Paragraph::new(format!(
                             "Open File: {}",
                             self.input_buffer
