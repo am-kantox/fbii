@@ -54,7 +54,7 @@ impl BookLayout {
                 measure,
                 indent,
                 simplified_mode,
-                config.hyphenation,
+                config,
                 &mut current_char_offset,
             );
 
@@ -93,7 +93,7 @@ fn layout_block(
     measure: usize,
     indent: usize,
     simplified_mode: bool,
-    _hyphenation: bool,
+    config: &TypographyConfig,
     char_offset: &mut usize,
 ) -> Vec<WrappedLine> {
     let mut result = Vec::new();
@@ -101,12 +101,21 @@ fn layout_block(
     match block {
         Block::Paragraph(inlines) => {
             let spans = flatten_inlines(inlines, false, 0, false);
-            let block_lines = wrap_spans_into_lines(spans, measure, indent, block_idx, char_offset);
+            let block_lines = wrap_spans_into_lines(
+                spans,
+                measure,
+                indent,
+                block_idx,
+                config.hyphenation,
+                config.justified,
+                char_offset,
+            );
             result.extend(block_lines);
         }
         Block::Heading { level, inlines } => {
             let spans = flatten_inlines(inlines, true, *level, false);
-            let block_lines = wrap_spans_into_lines(spans, measure, 0, block_idx, char_offset);
+            let block_lines =
+                wrap_spans_into_lines(spans, measure, 0, block_idx, false, false, char_offset);
             result.extend(block_lines);
         }
         Block::Quote(blocks) | Block::Epigraph(blocks) | Block::Annotation(blocks) => {
@@ -117,7 +126,7 @@ fn layout_block(
                     measure.saturating_sub(4),
                     0,
                     simplified_mode,
-                    _hyphenation,
+                    config,
                     char_offset,
                 );
                 for mut line in inner_lines {
@@ -148,8 +157,15 @@ fn layout_block(
                     ..Default::default()
                 }];
                 item_spans.extend(flatten_inlines(&item.inlines, false, 0, false));
-                let item_lines =
-                    wrap_spans_into_lines(item_spans, measure, 2, block_idx, char_offset);
+                let item_lines = wrap_spans_into_lines(
+                    item_spans,
+                    measure,
+                    2,
+                    block_idx,
+                    config.hyphenation,
+                    config.justified,
+                    char_offset,
+                );
                 result.extend(item_lines);
             }
         }
@@ -186,8 +202,15 @@ fn layout_block(
             for stanza in stanzas {
                 for line_inlines in &stanza.lines {
                     let spans = flatten_inlines(line_inlines, false, 0, false);
-                    let line_wrapped =
-                        wrap_spans_into_lines(spans, measure, 4, block_idx, char_offset);
+                    let line_wrapped = wrap_spans_into_lines(
+                        spans,
+                        measure,
+                        4,
+                        block_idx,
+                        config.hyphenation,
+                        false,
+                        char_offset,
+                    );
                     result.extend(line_wrapped);
                 }
             }
@@ -315,6 +338,8 @@ fn wrap_spans_into_lines(
     max_width: usize,
     indent: usize,
     block_idx: usize,
+    hyphenation: bool,
+    justified: bool,
     char_offset: &mut usize,
 ) -> Vec<WrappedLine> {
     let mut lines = Vec::new();
@@ -336,6 +361,26 @@ fn wrap_spans_into_lines(
             let word_width = word.width();
 
             if current_width + word_width > max_width && !current_line_spans.is_empty() {
+                // Apply justification if enabled and line has multiple spans
+                if justified && current_line_spans.len() > 1 && current_width < max_width {
+                    let gap = max_width.saturating_sub(current_width);
+                    let num_gaps = current_line_spans.len() - 1;
+                    let add_per_gap = gap / num_gaps;
+                    let mut rem = gap % num_gaps;
+                    for (i, line_span) in current_line_spans.iter_mut().enumerate() {
+                        if i < num_gaps {
+                            let extra = add_per_gap
+                                + if rem > 0 {
+                                    rem -= 1;
+                                    1
+                                } else {
+                                    0
+                                };
+                            line_span.text.push_str(&" ".repeat(extra));
+                        }
+                    }
+                }
+
                 lines.push(WrappedLine {
                     spans: current_line_spans,
                     block_index: block_idx,
@@ -348,12 +393,40 @@ fn wrap_spans_into_lines(
                 line_start_offset = *char_offset;
             }
 
-            *char_offset += word.chars().count();
-            current_width += word_width;
+            // Word-level hyphenation split for long words exceeding measure
+            if hyphenation && word_width > max_width && word.chars().count() > 6 {
+                let mid = word.chars().count() / 2;
+                let part1: String = word.chars().take(mid).collect();
+                let part2: String = word.chars().skip(mid).collect();
 
-            let mut word_span = span.clone();
-            word_span.text = word.to_string();
-            current_line_spans.push(word_span);
+                *char_offset += part1.chars().count();
+                let mut p1_span = span.clone();
+                p1_span.text = format!("{}-", part1);
+                current_line_spans.push(p1_span);
+
+                lines.push(WrappedLine {
+                    spans: current_line_spans,
+                    block_index: block_idx,
+                    char_start: line_start_offset,
+                    char_end: *char_offset,
+                    is_empty_line: false,
+                });
+
+                current_line_spans = Vec::new();
+                line_start_offset = *char_offset;
+                *char_offset += part2.chars().count();
+                current_width = part2.width();
+                let mut p2_span = span.clone();
+                p2_span.text = part2;
+                current_line_spans.push(p2_span);
+            } else {
+                *char_offset += word.chars().count();
+                current_width += word_width;
+
+                let mut word_span = span.clone();
+                word_span.text = word.to_string();
+                current_line_spans.push(word_span);
+            }
         }
     }
 

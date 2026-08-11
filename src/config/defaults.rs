@@ -7,6 +7,7 @@ pub struct TypographyConfig {
     pub paragraph_indent: u8,
     pub paragraph_spacing: u8,
     pub hyphenation: bool,
+    pub justified: bool,
 }
 
 impl Default for TypographyConfig {
@@ -16,7 +17,8 @@ impl Default for TypographyConfig {
             line_spacing: 1,
             paragraph_indent: 2,
             paragraph_spacing: 1,
-            hyphenation: false,
+            hyphenation: true,
+            justified: false,
         }
     }
 }

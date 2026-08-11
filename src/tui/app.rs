@@ -377,6 +377,17 @@ impl App {
             KeyAction::ToggleCss => {
                 self.config.display.respect_epub_css = !self.config.display.respect_epub_css;
             }
+            KeyAction::ToggleJustify => {
+                self.config.typography.justified = !self.config.typography.justified;
+                if let Some(book) = &self.active_book {
+                    let layout = BookLayout::build(
+                        book,
+                        &self.config.typography,
+                        self.config.display.simplified_mode,
+                    );
+                    self.active_layout = Some(layout);
+                }
+            }
         }
     }
 

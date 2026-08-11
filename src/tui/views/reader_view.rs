@@ -92,8 +92,19 @@ impl ReaderView {
             paragraph_lines.push(Line::from(spans));
         }
 
+        let content_width = (80u16).min(chunks[0].width);
+        let horizontal_margin = chunks[0].width.saturating_sub(content_width) / 2;
+        let reader_area = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Length(horizontal_margin),
+                Constraint::Length(content_width),
+                Constraint::Min(0),
+            ])
+            .split(chunks[0])[1];
+
         let reader_widget = Paragraph::new(paragraph_lines).style(theme.base_style());
-        f.render_widget(reader_widget, chunks[0]);
+        f.render_widget(reader_widget, reader_area);
 
         // Calculate progress % and progress bar
         let total_lines = layout.lines.len();
