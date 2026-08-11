@@ -2,10 +2,14 @@ pub mod cli;
 pub mod config;
 pub mod db;
 pub mod formats;
+pub mod renderer;
+pub mod search;
 pub mod utils;
 
 pub use cli::CliArgs;
 pub use config::Config;
 pub use db::LibraryDb;
 pub use formats::{Block, Book, BookFormat, Inline, Metadata};
+pub use renderer::BookLayout;
+pub use search::BookSearchIndex;
 pub use utils::{AppError, Result};
