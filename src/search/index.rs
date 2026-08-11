@@ -47,12 +47,16 @@ impl BookSearchIndex {
             while let Some(idx) = norm_text[start..].find(&folded_query) {
                 let match_byte_start = start + idx;
                 let match_byte_end = match_byte_start + folded_query.len();
-                
+
                 let char_start = norm_text[..match_byte_start].chars().count();
                 let char_end = char_start + query_char_count;
 
                 let original = &self.blocks_text[block_idx];
-                let snippet: String = original.chars().skip(char_start.saturating_sub(10)).take(query_char_count + 20).collect();
+                let snippet: String = original
+                    .chars()
+                    .skip(char_start.saturating_sub(10))
+                    .take(query_char_count + 20)
+                    .collect();
 
                 matches.push(SearchMatch {
                     block_index: block_idx,

@@ -2,7 +2,7 @@ pub mod defaults;
 pub mod keymap;
 
 pub use defaults::{DisplayConfig, TypographyConfig};
-pub use keymap::{KeyAction, KeyMap, normalize_key};
+pub use keymap::{normalize_key, KeyAction, KeyMap};
 
 use crate::utils::{AppError, Result};
 use serde::{Deserialize, Serialize};
@@ -55,11 +55,7 @@ impl Config {
 
     pub fn clamp_and_validate(&mut self) -> Result<()> {
         // Clamp measure between 30 and 200
-        if self.typography.measure < 30 {
-            self.typography.measure = 30;
-        } else if self.typography.measure > 200 {
-            self.typography.measure = 200;
-        }
+        self.typography.measure = self.typography.measure.clamp(30, 200);
 
         // Validate keybindings
         self.keymap.validate_and_normalize()?;

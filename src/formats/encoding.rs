@@ -32,7 +32,8 @@ pub fn decode_bytes(bytes: &[u8]) -> Result<String> {
         }
     }
 
-    let encoding = Encoding::for_label(detected_encoding_name.as_bytes()).unwrap_or(encoding_rs::UTF_8);
+    let encoding =
+        Encoding::for_label(detected_encoding_name.as_bytes()).unwrap_or(encoding_rs::UTF_8);
     let (cow, _, _had_errors) = encoding.decode(bytes);
     Ok(cow.into_owned())
 }
@@ -49,7 +50,8 @@ mod tests {
 
     #[test]
     fn test_xml_encoding_declaration() {
-        let (win1251_bytes, _, _) = encoding_rs::WINDOWS_1251.encode("<?xml version=\"1.0\" encoding=\"windows-1251\"?><book>Привет</book>");
+        let (win1251_bytes, _, _) = encoding_rs::WINDOWS_1251
+            .encode("<?xml version=\"1.0\" encoding=\"windows-1251\"?><book>Привет</book>");
         let decoded = decode_bytes(&win1251_bytes).unwrap();
         assert!(decoded.contains("Привет"));
     }

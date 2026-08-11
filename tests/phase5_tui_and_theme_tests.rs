@@ -3,13 +3,14 @@ use tabook::config::{Config, KeyAction, KeyMap};
 use tabook::db::LibraryDb;
 use tabook::formats::model::{Block, Book, Inline, Metadata};
 use tabook::themes::Theme;
-use tabook::tui::keymap_dispatcher::KeymapDispatcher;
+use tabook::tui::keymap_dispatcher::{format_key_event, KeymapDispatcher};
 use tabook::tui::{App, AppMode};
 
 #[test]
 fn test_theme_catalog() {
     let dracula = Theme::get_by_name("dracula");
     assert_eq!(dracula.name, "dracula");
+    assert!(dracula.base_style().bg.is_some());
 
     let monokai = Theme::get_by_name("monokai");
     assert_eq!(monokai.name, "monokai");
@@ -17,8 +18,23 @@ fn test_theme_catalog() {
     let gh_dark = Theme::get_by_name("github-dark");
     assert_eq!(gh_dark.name, "github-dark");
 
+    let gh_light = Theme::get_by_name("github-light");
+    assert_eq!(gh_light.name, "github-light");
+
     let fallback = Theme::get_by_name("unknown-theme");
     assert_eq!(fallback.name, "dracula");
+}
+
+#[test]
+fn test_key_event_formatting() {
+    let enter = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+    assert_eq!(format_key_event(enter), "Enter");
+
+    let esc = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
+    assert_eq!(format_key_event(esc), "Esc");
+
+    let ctrl_d = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
+    assert_eq!(format_key_event(ctrl_d), "ctrl+d");
 }
 
 #[test]
@@ -64,6 +80,13 @@ async fn test_app_action_handling() {
     assert_eq!(app.reader_view.scroll_offset, 1);
 
     app.handle_action(KeyAction::ScrollUp);
+    assert_eq!(app.reader_view.scroll_offset, 0);
+
+    // Test GotoTop & GotoBottom
+    app.handle_action(KeyAction::GotoBottom);
+    assert!(app.reader_view.scroll_offset > 0);
+
+    app.handle_action(KeyAction::GotoTop);
     assert_eq!(app.reader_view.scroll_offset, 0);
 
     // Test TOC modal toggle

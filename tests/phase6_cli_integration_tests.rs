@@ -14,7 +14,10 @@ fn test_cli_argument_parsing() {
     assert!(args.file_path.is_none());
 
     let args_file = CliArgs::parse_from(["tabook", "/path/to/book.epub"]);
-    assert_eq!(args_file.file_path.unwrap().to_str().unwrap(), "/path/to/book.epub");
+    assert_eq!(
+        args_file.file_path.unwrap().to_str().unwrap(),
+        "/path/to/book.epub"
+    );
 }
 
 #[tokio::test]
@@ -44,7 +47,10 @@ async fn test_full_lifecycle_open_file_and_db_persistence() {
     app.load_book(book);
 
     assert_eq!(app.mode, AppMode::Reader);
-    assert_eq!(app.active_book.as_ref().unwrap().metadata.title, "CLI Integration Test Book");
+    assert_eq!(
+        app.active_book.as_ref().unwrap().metadata.title,
+        "CLI Integration Test Book"
+    );
 
     let books_in_db = app.db.list_books().await.unwrap();
     assert_eq!(books_in_db.len(), 1);

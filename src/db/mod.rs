@@ -17,7 +17,7 @@ pub struct LibraryDb {
 impl LibraryDb {
     pub async fn new_in_memory() -> Result<Self> {
         let options = SqliteConnectOptions::from_str("sqlite::memory:")
-            .map_err(|e| AppError::Database(e))?
+            .map_err(AppError::Database)?
             .create_if_missing(true);
 
         let pool = SqlitePoolOptions::new()
@@ -37,7 +37,7 @@ impl LibraryDb {
 
         let db_url = format!("sqlite://{}", path.to_string_lossy());
         let options = SqliteConnectOptions::from_str(&db_url)
-            .map_err(|e| AppError::Database(e))?
+            .map_err(AppError::Database)?
             .create_if_missing(true);
 
         let pool = SqlitePoolOptions::new()
@@ -256,7 +256,14 @@ impl LibraryDb {
     }
 
     pub async fn start_reading_session(&self, book_id: &str) -> Result<String> {
-        let id = md5_hash(format!("{}:{}", book_id, Utc::now().timestamp_nanos_opt().unwrap_or(0)).as_bytes());
+        let id = md5_hash(
+            format!(
+                "{}:{}",
+                book_id,
+                Utc::now().timestamp_nanos_opt().unwrap_or(0)
+            )
+            .as_bytes(),
+        );
         let now = Utc::now();
 
         sqlx::query(
@@ -273,14 +280,12 @@ impl LibraryDb {
 
     pub async fn end_reading_session(&self, session_id: &str, pages_read: u32) -> Result<()> {
         let now = Utc::now();
-        sqlx::query(
-            "UPDATE reading_sessions SET end_time = ?1, pages_read = ?2 WHERE id = ?3",
-        )
-        .bind(now)
-        .bind(pages_read as i64)
-        .bind(session_id)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("UPDATE reading_sessions SET end_time = ?1, pages_read = ?2 WHERE id = ?3")
+            .bind(now)
+            .bind(pages_read as i64)
+            .bind(session_id)
+            .execute(&self.pool)
+            .await?;
 
         Ok(())
     }

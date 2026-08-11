@@ -47,11 +47,15 @@ pub fn parse_epub(path: &Path) -> Result<Book> {
                 parse_epub_metadata(child, &mut metadata, &mut cover_id);
             }
             "manifest" => {
-                for item in child.children().filter(|n| n.is_element() && n.tag_name().name() == "item") {
+                for item in child
+                    .children()
+                    .filter(|n| n.is_element() && n.tag_name().name() == "item")
+                {
                     if let (Some(id), Some(href)) = (item.attribute("id"), item.attribute("href")) {
-                        let media_type = item.attribute("media-type").unwrap_or_default().to_string();
+                        let media_type =
+                            item.attribute("media-type").unwrap_or_default().to_string();
                         let properties = item.attribute("properties").unwrap_or_default();
-                        
+
                         let full_href = if opf_dir.is_empty() {
                             href.to_string()
                         } else {
@@ -73,7 +77,10 @@ pub fn parse_epub(path: &Path) -> Result<Book> {
                 if let Some(toc_attr) = child.attribute("toc") {
                     ncx_id = Some(toc_attr.to_string());
                 }
-                for itemref in child.children().filter(|n| n.is_element() && n.tag_name().name() == "itemref") {
+                for itemref in child
+                    .children()
+                    .filter(|n| n.is_element() && n.tag_name().name() == "itemref")
+                {
                     if let Some(idref) = itemref.attribute("idref") {
                         spine.push(idref.to_string());
                     }
@@ -92,7 +99,7 @@ pub fn parse_epub(path: &Path) -> Result<Book> {
 
     // Load resources (images) into memory map
     let mut resources = HashMap::new();
-    for (_id, (href, media_type)) in &manifest {
+    for (href, media_type) in manifest.values() {
         if media_type.starts_with("image/") {
             if let Ok(img_bytes) = read_zip_file(&mut archive, href) {
                 resources.insert(href.clone(), img_bytes);
@@ -120,7 +127,10 @@ pub fn parse_epub(path: &Path) -> Result<Book> {
         }
     }
 
-    let file_stem = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "epub".to_string());
+    let file_stem = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "epub".to_string());
     let id = md5_hash(file_stem.as_bytes());
 
     let mut book = Book::new(id, path.to_string_lossy().to_string(), metadata);
@@ -137,13 +147,18 @@ fn get_container_opf_path(archive: &mut ZipArchive<std::fs::File>) -> Result<Str
     let doc = roxmltree::Document::parse(&container_str)
         .map_err(|e| AppError::Parse(format!("Invalid container.xml: {}", e)))?;
 
-    for node in doc.descendants().filter(|n| n.is_element() && n.tag_name().name() == "rootfile") {
+    for node in doc
+        .descendants()
+        .filter(|n| n.is_element() && n.tag_name().name() == "rootfile")
+    {
         if let Some(full_path) = node.attribute("full-path") {
             return Ok(full_path.to_string());
         }
     }
 
-    Err(AppError::Parse("Could not find full-path in container.xml".to_string()))
+    Err(AppError::Parse(
+        "Could not find full-path in container.xml".to_string(),
+    ))
 }
 
 fn read_zip_file(archive: &mut ZipArchive<std::fs::File>, path: &str) -> Result<Vec<u8>> {
@@ -158,7 +173,10 @@ fn read_zip_file(archive: &mut ZipArchive<std::fs::File>, path: &str) -> Result<
         file.read_to_end(&mut buf)?;
         return Ok(buf);
     }
-    Err(AppError::Parse(format!("File '{}' not found in zip archive", path)))
+    Err(AppError::Parse(format!(
+        "File '{}' not found in zip archive",
+        path
+    )))
 }
 
 fn parse_epub_metadata(node: Node, metadata: &mut Metadata, cover_id: &mut Option<String>) {
@@ -204,14 +222,20 @@ fn parse_ncx_toc(ncx_xml: &str, toc: &mut Vec<TocItem>) -> Result<()> {
     let doc = roxmltree::Document::parse(ncx_xml)
         .map_err(|e| AppError::Parse(format!("NCX XML error: {}", e)))?;
 
-    for node in doc.descendants().filter(|n| n.is_element() && n.tag_name().name().eq_ignore_ascii_case("navPoint")) {
+    for node in doc
+        .descendants()
+        .filter(|n| n.is_element() && n.tag_name().name().eq_ignore_ascii_case("navPoint"))
+    {
         let mut title = String::new();
         let mut target_href = String::new();
 
         for child in node.children().filter(|n| n.is_element()) {
             let cname = child.tag_name().name();
             if cname.eq_ignore_ascii_case("navLabel") {
-                if let Some(txt_node) = child.children().find(|n| n.is_element() && n.tag_name().name().eq_ignore_ascii_case("text")) {
+                if let Some(txt_node) = child
+                    .children()
+                    .find(|n| n.is_element() && n.tag_name().name().eq_ignore_ascii_case("text"))
+                {
                     if let Some(t) = txt_node.text() {
                         title = t.trim().to_string();
                     }
@@ -291,7 +315,10 @@ fn parse_html_nodes(node: Node, content: &mut Vec<Block>) {
             "ul" | "ol" => {
                 let ordered = name == "ol";
                 let mut items = Vec::new();
-                for li in child.children().filter(|n| n.is_element() && n.tag_name().name().to_lowercase() == "li") {
+                for li in child
+                    .children()
+                    .filter(|n| n.is_element() && n.tag_name().name().to_lowercase() == "li")
+                {
                     let mut inlines = Vec::new();
                     parse_html_inlines(li, &mut inlines);
                     items.push(ListItem { inlines });
@@ -300,7 +327,10 @@ fn parse_html_nodes(node: Node, content: &mut Vec<Block>) {
             }
             "table" => {
                 let mut rows = Vec::new();
-                for tr in child.descendants().filter(|n| n.is_element() && n.tag_name().name().to_lowercase() == "tr") {
+                for tr in child
+                    .descendants()
+                    .filter(|n| n.is_element() && n.tag_name().name().to_lowercase() == "tr")
+                {
                     let mut cells = Vec::new();
                     for cell in tr.children().filter(|n| n.is_element()) {
                         let cname = cell.tag_name().name().to_lowercase();
@@ -318,7 +348,10 @@ fn parse_html_nodes(node: Node, content: &mut Vec<Block>) {
             "img" => {
                 if let Some(src) = child.attribute("src") {
                     let alt = child.attribute("alt").map(|s| s.to_string());
-                    content.push(Block::Image { key: src.to_string(), alt });
+                    content.push(Block::Image {
+                        key: src.to_string(),
+                        alt,
+                    });
                 }
             }
             _ => {
@@ -362,14 +395,21 @@ fn parse_html_inlines(node: Node, out: &mut Vec<Inline>) {
                 "code" => {
                     let mut inner = Vec::new();
                     parse_html_inlines(child, &mut inner);
-                    let txt = inner.iter().map(|i| i.plain_text()).collect::<Vec<_>>().join("");
+                    let txt = inner
+                        .iter()
+                        .map(|i| i.plain_text())
+                        .collect::<Vec<_>>()
+                        .join("");
                     out.push(Inline::Code(txt));
                 }
                 "a" => {
                     let target = child.attribute("href").unwrap_or_default().to_string();
                     let mut inner = Vec::new();
                     parse_html_inlines(child, &mut inner);
-                    out.push(Inline::Link { target, inlines: inner });
+                    out.push(Inline::Link {
+                        target,
+                        inlines: inner,
+                    });
                 }
                 "br" => {
                     out.push(Inline::LineBreak);
@@ -377,7 +417,10 @@ fn parse_html_inlines(node: Node, out: &mut Vec<Inline>) {
                 "img" => {
                     if let Some(src) = child.attribute("src") {
                         let alt = child.attribute("alt").map(|s| s.to_string());
-                        out.push(Inline::Image { key: src.to_string(), alt });
+                        out.push(Inline::Image {
+                            key: src.to_string(),
+                            alt,
+                        });
                     }
                 }
                 _ => {

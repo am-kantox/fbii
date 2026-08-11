@@ -60,9 +60,15 @@ pub enum Inline {
     Italic(Vec<Inline>),
     Underline(Vec<Inline>),
     Strike(Vec<Inline>),
-    Link { target: String, inlines: Vec<Inline> },
+    Link {
+        target: String,
+        inlines: Vec<Inline>,
+    },
     Code(String),
-    Image { key: String, alt: Option<String> },
+    Image {
+        key: String,
+        alt: Option<String>,
+    },
     LineBreak,
 }
 
@@ -74,9 +80,13 @@ impl Inline {
             | Inline::Italic(children)
             | Inline::Underline(children)
             | Inline::Strike(children)
-            | Inline::Link { inlines: children, .. } => {
-                children.iter().map(|i| i.plain_text()).collect::<Vec<_>>().join("")
-            }
+            | Inline::Link {
+                inlines: children, ..
+            } => children
+                .iter()
+                .map(|i| i.plain_text())
+                .collect::<Vec<_>>()
+                .join(""),
             Inline::Image { alt, .. } => alt.clone().unwrap_or_default(),
             Inline::LineBreak => "\n".to_string(),
         }
@@ -121,31 +131,61 @@ pub enum Block {
 impl Block {
     pub fn plain_text(&self) -> String {
         match self {
-            Block::Paragraph(inlines) | Block::Heading { inlines, .. } => {
-                inlines.iter().map(|i| i.plain_text()).collect::<Vec<_>>().join("")
-            }
-            Block::Quote(blocks) | Block::Epigraph(blocks) | Block::Annotation(blocks) => {
-                blocks.iter().map(|b| b.plain_text()).collect::<Vec<_>>().join("\n")
-            }
-            Block::List { items, .. } => {
-                items.iter().map(|item| {
-                    item.inlines.iter().map(|i| i.plain_text()).collect::<Vec<_>>().join("")
-                }).collect::<Vec<_>>().join("\n")
-            }
-            Block::Table { rows } => {
-                rows.iter().map(|row| {
-                    row.cells.iter().map(|cell| {
-                        cell.inlines.iter().map(|i| i.plain_text()).collect::<Vec<_>>().join("")
-                    }).collect::<Vec<_>>().join(" | ")
-                }).collect::<Vec<_>>().join("\n")
-            }
-            Block::Poem { stanzas } => {
-                stanzas.iter().map(|stanza| {
-                    stanza.lines.iter().map(|line| {
-                        line.iter().map(|i| i.plain_text()).collect::<Vec<_>>().join("")
-                    }).collect::<Vec<_>>().join("\n")
-                }).collect::<Vec<_>>().join("\n\n")
-            }
+            Block::Paragraph(inlines) | Block::Heading { inlines, .. } => inlines
+                .iter()
+                .map(|i| i.plain_text())
+                .collect::<Vec<_>>()
+                .join(""),
+            Block::Quote(blocks) | Block::Epigraph(blocks) | Block::Annotation(blocks) => blocks
+                .iter()
+                .map(|b| b.plain_text())
+                .collect::<Vec<_>>()
+                .join("\n"),
+            Block::List { items, .. } => items
+                .iter()
+                .map(|item| {
+                    item.inlines
+                        .iter()
+                        .map(|i| i.plain_text())
+                        .collect::<Vec<_>>()
+                        .join("")
+                })
+                .collect::<Vec<_>>()
+                .join("\n"),
+            Block::Table { rows } => rows
+                .iter()
+                .map(|row| {
+                    row.cells
+                        .iter()
+                        .map(|cell| {
+                            cell.inlines
+                                .iter()
+                                .map(|i| i.plain_text())
+                                .collect::<Vec<_>>()
+                                .join("")
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" | ")
+                })
+                .collect::<Vec<_>>()
+                .join("\n"),
+            Block::Poem { stanzas } => stanzas
+                .iter()
+                .map(|stanza| {
+                    stanza
+                        .lines
+                        .iter()
+                        .map(|line| {
+                            line.iter()
+                                .map(|i| i.plain_text())
+                                .collect::<Vec<_>>()
+                                .join("")
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                })
+                .collect::<Vec<_>>()
+                .join("\n\n"),
             Block::Image { alt, .. } => alt.clone().unwrap_or_default(),
             Block::Empty => String::new(),
         }

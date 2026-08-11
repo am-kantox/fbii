@@ -1,4 +1,4 @@
-use ratatui::style::{Color, Style, Modifier};
+use ratatui::style::{Color, Modifier, Style};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Theme {
@@ -89,14 +89,23 @@ impl Theme {
     }
 
     pub fn heading_style(&self) -> Style {
-        Style::default().bg(self.background).fg(self.heading).add_modifier(Modifier::BOLD)
+        Style::default()
+            .bg(self.background)
+            .fg(self.heading)
+            .add_modifier(Modifier::BOLD)
     }
 
     pub fn status_style(&self) -> Style {
-        Style::default().bg(self.status_bg).fg(self.status_fg).add_modifier(Modifier::BOLD)
+        Style::default()
+            .bg(self.status_bg)
+            .fg(self.status_fg)
+            .add_modifier(Modifier::BOLD)
     }
 
     pub fn highlight_style(&self) -> Style {
-        Style::default().bg(self.highlight).fg(self.background).add_modifier(Modifier::BOLD)
+        Style::default()
+            .bg(self.highlight)
+            .fg(self.background)
+            .add_modifier(Modifier::BOLD)
     }
 }

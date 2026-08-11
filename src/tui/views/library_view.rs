@@ -5,6 +5,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
 use ratatui::Frame;
 
+#[derive(Default)]
 pub struct LibraryView {
     pub state: ListState,
 }
@@ -30,8 +31,7 @@ impl LibraryView {
         } else {
             let items: Vec<ListItem> = books
                 .iter()
-                .enumerate()
-                .map(|(_i, b)| {
+                .map(|b| {
                     let text = format!(
                         "[{}] {} - {} ({:.1}%)",
                         b.format.to_uppercase(),

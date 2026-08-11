@@ -9,7 +9,9 @@ use crate::tui::views::library_view::LibraryView;
 use crate::tui::views::reader_view::ReaderView;
 use crate::utils::Result;
 use crossterm::event::{Event, EventStream};
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::terminal::{
+    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+};
 use crossterm::ExecutableCommand;
 use futures::StreamExt;
 use ratatui::backend::CrosstermBackend;
@@ -61,7 +63,11 @@ impl App {
     }
 
     pub fn load_book(&mut self, book: Book) {
-        let layout = BookLayout::build(&book, &self.config.typography, self.config.display.simplified_mode);
+        let layout = BookLayout::build(
+            &book,
+            &self.config.typography,
+            self.config.display.simplified_mode,
+        );
         let search_index = BookSearchIndex::build(&book);
 
         self.active_book = Some(book);
@@ -105,7 +111,8 @@ impl App {
             }
             KeyAction::ScrollUp => {
                 if self.mode == AppMode::Reader {
-                    self.reader_view.scroll_offset = self.reader_view.scroll_offset.saturating_sub(1);
+                    self.reader_view.scroll_offset =
+                        self.reader_view.scroll_offset.saturating_sub(1);
                 } else if !self.library_books.is_empty() {
                     let idx = self.library_view.state.selected().unwrap_or(0);
                     self.library_view.state.select(Some(idx.saturating_sub(1)));
@@ -114,13 +121,15 @@ impl App {
             KeyAction::HalfPageDown => {
                 if self.mode == AppMode::Reader {
                     if let Some(layout) = &self.active_layout {
-                        self.reader_view.scroll_offset = (self.reader_view.scroll_offset + 10).min(layout.lines.len().saturating_sub(1));
+                        self.reader_view.scroll_offset = (self.reader_view.scroll_offset + 10)
+                            .min(layout.lines.len().saturating_sub(1));
                     }
                 }
             }
             KeyAction::HalfPageUp => {
                 if self.mode == AppMode::Reader {
-                    self.reader_view.scroll_offset = self.reader_view.scroll_offset.saturating_sub(10);
+                    self.reader_view.scroll_offset =
+                        self.reader_view.scroll_offset.saturating_sub(10);
                 }
             }
             KeyAction::GotoTop => {
@@ -146,7 +155,11 @@ impl App {
             KeyAction::ToggleSimpleMode => {
                 self.config.display.simplified_mode = !self.config.display.simplified_mode;
                 if let Some(book) = &self.active_book {
-                    let layout = BookLayout::build(book, &self.config.typography, self.config.display.simplified_mode);
+                    let layout = BookLayout::build(
+                        book,
+                        &self.config.typography,
+                        self.config.display.simplified_mode,
+                    );
                     self.active_layout = Some(layout);
                 }
             }
@@ -170,10 +183,12 @@ impl App {
                 let area = f.area();
                 match self.mode {
                     AppMode::Library => {
-                        self.library_view.render(f, area, &self.library_books, &self.theme);
+                        self.library_view
+                            .render(f, area, &self.library_books, &self.theme);
                     }
                     AppMode::Reader => {
-                        if let (Some(book), Some(layout)) = (&self.active_book, &self.active_layout) {
+                        if let (Some(book), Some(layout)) = (&self.active_book, &self.active_layout)
+                        {
                             self.reader_view.render(f, area, book, layout, &self.theme);
                         }
                     }

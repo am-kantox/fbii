@@ -24,10 +24,18 @@ pub fn parse_fb2_bytes(bytes: &[u8], file_path: &str) -> Result<Book> {
     let mut resources = HashMap::new();
 
     // Extract binary objects (images)
-    for node in root.children().filter(|n| n.is_element() && n.tag_name().name() == "binary") {
+    for node in root
+        .children()
+        .filter(|n| n.is_element() && n.tag_name().name() == "binary")
+    {
         if let Some(id) = node.attribute("id") {
             let key = id.trim_start_matches('#').to_string();
-            let base64_text: String = node.text().unwrap_or_default().chars().filter(|c| !c.is_whitespace()).collect();
+            let base64_text: String = node
+                .text()
+                .unwrap_or_default()
+                .chars()
+                .filter(|c| !c.is_whitespace())
+                .collect();
             if let Ok(decoded) = base64_decode(&base64_text) {
                 resources.insert(key, decoded);
             }
@@ -35,8 +43,14 @@ pub fn parse_fb2_bytes(bytes: &[u8], file_path: &str) -> Result<Book> {
     }
 
     // Extract description & metadata
-    if let Some(desc_node) = root.children().find(|n| n.is_element() && n.tag_name().name() == "description") {
-        if let Some(title_info) = desc_node.children().find(|n| n.is_element() && n.tag_name().name() == "title-info") {
+    if let Some(desc_node) = root
+        .children()
+        .find(|n| n.is_element() && n.tag_name().name() == "description")
+    {
+        if let Some(title_info) = desc_node
+            .children()
+            .find(|n| n.is_element() && n.tag_name().name() == "title-info")
+        {
             parse_title_info(title_info, &mut metadata);
         }
     }
@@ -45,7 +59,10 @@ pub fn parse_fb2_bytes(bytes: &[u8], file_path: &str) -> Result<Book> {
     let mut toc = Vec::new();
 
     // Parse body elements
-    for body_node in root.children().filter(|n| n.is_element() && n.tag_name().name() == "body") {
+    for body_node in root
+        .children()
+        .filter(|n| n.is_element() && n.tag_name().name() == "body")
+    {
         parse_body(body_node, &mut content, &mut toc);
     }
 
@@ -65,7 +82,8 @@ pub fn parse_fb2_zip(path: &Path) -> Result<Book> {
         .map_err(|e| AppError::Parse(format!("Failed to open ZIP archive: {}", e)))?;
 
     for i in 0..archive.len() {
-        let mut zip_file = archive.by_index(i)
+        let mut zip_file = archive
+            .by_index(i)
             .map_err(|e| AppError::Parse(format!("Zip read error: {}", e)))?;
         let name = zip_file.name().to_lowercase();
         if name.ends_with(".fb2") || name.ends_with(".xml") {
@@ -77,7 +95,9 @@ pub fn parse_fb2_zip(path: &Path) -> Result<Book> {
         }
     }
 
-    Err(AppError::Parse("No .fb2 file found inside ZIP archive".to_string()))
+    Err(AppError::Parse(
+        "No .fb2 file found inside ZIP archive".to_string(),
+    ))
 }
 
 fn parse_title_info(node: Node, metadata: &mut Metadata) {
@@ -122,14 +142,24 @@ fn parse_title_info(node: Node, metadata: &mut Metadata) {
             "annotation" => {
                 let mut inlines = Vec::new();
                 parse_inlines(child, &mut inlines);
-                let text = inlines.iter().map(|i| i.plain_text()).collect::<Vec<_>>().join("");
+                let text = inlines
+                    .iter()
+                    .map(|i| i.plain_text())
+                    .collect::<Vec<_>>()
+                    .join("");
                 if !text.is_empty() {
                     metadata.annotation = Some(text);
                 }
             }
             "coverpage" => {
-                if let Some(img_node) = child.children().find(|n| n.is_element() && n.tag_name().name() == "image") {
-                    if let Some(href) = img_node.attribute(("http://www.w3.org/1999/xlink", "href")).or_else(|| img_node.attribute("href")) {
+                if let Some(img_node) = child
+                    .children()
+                    .find(|n| n.is_element() && n.tag_name().name() == "image")
+                {
+                    if let Some(href) = img_node
+                        .attribute(("http://www.w3.org/1999/xlink", "href"))
+                        .or_else(|| img_node.attribute("href"))
+                    {
                         metadata.cover_image_key = Some(href.trim_start_matches('#').to_string());
                     }
                 }
@@ -153,7 +183,11 @@ fn parse_body(node: Node, content: &mut Vec<Block>, toc: &mut Vec<TocItem>) {
                 let block_idx = content.len();
                 let mut inlines = Vec::new();
                 parse_inlines(child, &mut inlines);
-                let title_text = inlines.iter().map(|i| i.plain_text()).collect::<Vec<_>>().join("");
+                let title_text = inlines
+                    .iter()
+                    .map(|i| i.plain_text())
+                    .collect::<Vec<_>>()
+                    .join("");
                 content.push(Block::Heading { level: 1, inlines });
                 toc.push(TocItem {
                     title: title_text,
@@ -182,7 +216,11 @@ fn parse_section(node: Node, content: &mut Vec<Block>, toc: &mut Vec<TocItem>) {
                 let _block_idx = content.len();
                 let mut inlines = Vec::new();
                 parse_inlines(child, &mut inlines);
-                let t_text = inlines.iter().map(|i| i.plain_text()).collect::<Vec<_>>().join("");
+                let t_text = inlines
+                    .iter()
+                    .map(|i| i.plain_text())
+                    .collect::<Vec<_>>()
+                    .join("");
                 section_title = Some(t_text);
                 content.push(Block::Heading { level: 2, inlines });
             }
@@ -236,9 +274,15 @@ fn parse_block_element(node: Node) -> Option<Block> {
         }
         "poem" => {
             let mut stanzas = Vec::new();
-            for stanza_node in node.children().filter(|n| n.is_element() && n.tag_name().name() == "stanza") {
+            for stanza_node in node
+                .children()
+                .filter(|n| n.is_element() && n.tag_name().name() == "stanza")
+            {
                 let mut lines = Vec::new();
-                for v_node in stanza_node.children().filter(|n| n.is_element() && n.tag_name().name() == "v") {
+                for v_node in stanza_node
+                    .children()
+                    .filter(|n| n.is_element() && n.tag_name().name() == "v")
+                {
                     let mut line_inlines = Vec::new();
                     parse_inlines(v_node, &mut line_inlines);
                     lines.push(line_inlines);
@@ -249,7 +293,10 @@ fn parse_block_element(node: Node) -> Option<Block> {
         }
         "table" => {
             let mut rows = Vec::new();
-            for tr in node.children().filter(|n| n.is_element() && n.tag_name().name() == "tr") {
+            for tr in node
+                .children()
+                .filter(|n| n.is_element() && n.tag_name().name() == "tr")
+            {
                 let mut cells = Vec::new();
                 for td in tr.children().filter(|n| n.is_element()) {
                     let is_header = td.tag_name().name() == "th";
@@ -262,7 +309,10 @@ fn parse_block_element(node: Node) -> Option<Block> {
             Some(Block::Table { rows })
         }
         "image" => {
-            if let Some(href) = node.attribute(("http://www.w3.org/1999/xlink", "href")).or_else(|| node.attribute("href")) {
+            if let Some(href) = node
+                .attribute(("http://www.w3.org/1999/xlink", "href"))
+                .or_else(|| node.attribute("href"))
+            {
                 let key = href.trim_start_matches('#').to_string();
                 Some(Block::Image { key, alt: None })
             } else {
@@ -310,20 +360,31 @@ fn parse_inlines(node: Node, out: &mut Vec<Inline>) {
                 "style" | "code" => {
                     let mut inner = Vec::new();
                     parse_inlines(child, &mut inner);
-                    let txt = inner.iter().map(|i| i.plain_text()).collect::<Vec<_>>().join("");
+                    let txt = inner
+                        .iter()
+                        .map(|i| i.plain_text())
+                        .collect::<Vec<_>>()
+                        .join("");
                     out.push(Inline::Code(txt));
                 }
                 "a" => {
-                    let target = child.attribute(("http://www.w3.org/1999/xlink", "href"))
+                    let target = child
+                        .attribute(("http://www.w3.org/1999/xlink", "href"))
                         .or_else(|| child.attribute("href"))
                         .unwrap_or_default()
                         .to_string();
                     let mut inner = Vec::new();
                     parse_inlines(child, &mut inner);
-                    out.push(Inline::Link { target, inlines: inner });
+                    out.push(Inline::Link {
+                        target,
+                        inlines: inner,
+                    });
                 }
                 "image" => {
-                    if let Some(href) = child.attribute(("http://www.w3.org/1999/xlink", "href")).or_else(|| child.attribute("href")) {
+                    if let Some(href) = child
+                        .attribute(("http://www.w3.org/1999/xlink", "href"))
+                        .or_else(|| child.attribute("href"))
+                    {
                         let key = href.trim_start_matches('#').to_string();
                         out.push(Inline::Image { key, alt: None });
                     }

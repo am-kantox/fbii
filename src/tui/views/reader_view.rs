@@ -7,6 +7,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph};
 use ratatui::Frame;
 
+#[derive(Default)]
 pub struct ReaderView {
     pub scroll_offset: usize,
     pub show_toc: bool,
@@ -33,7 +34,14 @@ impl ReaderView {
         }
     }
 
-    pub fn render(&mut self, f: &mut Frame, area: Rect, book: &Book, layout: &BookLayout, theme: &Theme) {
+    pub fn render(
+        &mut self,
+        f: &mut Frame,
+        area: Rect,
+        book: &Book,
+        layout: &BookLayout,
+        theme: &Theme,
+    ) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(5), Constraint::Length(1)])
@@ -82,7 +90,8 @@ impl ReaderView {
         let progress_percent = if total_lines == 0 {
             0.0
         } else {
-            ((self.scroll_offset + viewport_height).min(total_lines) as f64 / total_lines as f64) * 100.0
+            ((self.scroll_offset + viewport_height).min(total_lines) as f64 / total_lines as f64)
+                * 100.0
         };
 
         let status_text = format!(
@@ -119,7 +128,11 @@ impl ReaderView {
             .collect();
 
         let list = List::new(items)
-            .block(Block::default().borders(Borders::ALL).title(" Table of Contents "))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Table of Contents "),
+            )
             .highlight_style(
                 Style::default()
                     .bg(theme.selection)
@@ -151,9 +164,11 @@ impl ReaderView {
  q                Back / Quit
 "#;
 
-        let paragraph = Paragraph::new(help_text)
-            .style(theme.base_style())
-            .block(Block::default().borders(Borders::ALL).title(" Controls & Help "));
+        let paragraph = Paragraph::new(help_text).style(theme.base_style()).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Controls & Help "),
+        );
 
         f.render_widget(paragraph, modal_area);
     }

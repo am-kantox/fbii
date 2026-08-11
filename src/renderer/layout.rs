@@ -34,8 +34,16 @@ impl BookLayout {
     pub fn build(book: &Book, config: &TypographyConfig, simplified_mode: bool) -> Self {
         let mut lines = Vec::new();
         let measure = config.measure as usize;
-        let indent = if simplified_mode { 0 } else { config.paragraph_indent as usize };
-        let spacing = if simplified_mode { 1 } else { config.paragraph_spacing as usize };
+        let indent = if simplified_mode {
+            0
+        } else {
+            config.paragraph_indent as usize
+        };
+        let spacing = if simplified_mode {
+            1
+        } else {
+            config.paragraph_spacing as usize
+        };
 
         let mut current_char_offset = 0;
 
@@ -103,14 +111,25 @@ fn layout_block(
         }
         Block::Quote(blocks) | Block::Epigraph(blocks) | Block::Annotation(blocks) => {
             for b in blocks {
-                let inner_lines = layout_block(b, block_idx, measure.saturating_sub(4), 0, simplified_mode, _hyphenation, char_offset);
+                let inner_lines = layout_block(
+                    b,
+                    block_idx,
+                    measure.saturating_sub(4),
+                    0,
+                    simplified_mode,
+                    _hyphenation,
+                    char_offset,
+                );
                 for mut line in inner_lines {
                     if !simplified_mode {
-                        line.spans.insert(0, StyledSpan {
-                            text: "│ ".to_string(),
-                            is_quote: true,
-                            ..Default::default()
-                        });
+                        line.spans.insert(
+                            0,
+                            StyledSpan {
+                                text: "│ ".to_string(),
+                                is_quote: true,
+                                ..Default::default()
+                            },
+                        );
                     }
                     result.push(line);
                 }
@@ -118,20 +137,44 @@ fn layout_block(
         }
         Block::List { ordered, items } => {
             for (i, item) in items.iter().enumerate() {
-                let prefix = if *ordered { format!("{}. ", i + 1) } else { "• ".to_string() };
-                let mut item_spans = vec![StyledSpan { text: prefix, bold: true, ..Default::default() }];
+                let prefix = if *ordered {
+                    format!("{}. ", i + 1)
+                } else {
+                    "• ".to_string()
+                };
+                let mut item_spans = vec![StyledSpan {
+                    text: prefix,
+                    bold: true,
+                    ..Default::default()
+                }];
                 item_spans.extend(flatten_inlines(&item.inlines, false, 0, false));
-                let item_lines = wrap_spans_into_lines(item_spans, measure, 2, block_idx, char_offset);
+                let item_lines =
+                    wrap_spans_into_lines(item_spans, measure, 2, block_idx, char_offset);
                 result.extend(item_lines);
             }
         }
         Block::Table { rows } => {
             for row in rows {
-                let row_str: String = row.cells.iter().map(|c| c.inlines.iter().map(|i| i.plain_text()).collect::<Vec<_>>().join("")).collect::<Vec<_>>().join(" | ");
+                let row_str: String = row
+                    .cells
+                    .iter()
+                    .map(|c| {
+                        c.inlines
+                            .iter()
+                            .map(|i| i.plain_text())
+                            .collect::<Vec<_>>()
+                            .join("")
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" | ");
                 let start = *char_offset;
                 *char_offset += row_str.chars().count();
                 result.push(WrappedLine {
-                    spans: vec![StyledSpan { text: row_str, code: true, ..Default::default() }],
+                    spans: vec![StyledSpan {
+                        text: row_str,
+                        code: true,
+                        ..Default::default()
+                    }],
                     block_index: block_idx,
                     char_start: start,
                     char_end: *char_offset,
@@ -143,7 +186,8 @@ fn layout_block(
             for stanza in stanzas {
                 for line_inlines in &stanza.lines {
                     let spans = flatten_inlines(line_inlines, false, 0, false);
-                    let line_wrapped = wrap_spans_into_lines(spans, measure, 4, block_idx, char_offset);
+                    let line_wrapped =
+                        wrap_spans_into_lines(spans, measure, 4, block_idx, char_offset);
                     result.extend(line_wrapped);
                 }
             }
@@ -153,7 +197,11 @@ fn layout_block(
             let start = *char_offset;
             *char_offset += label.chars().count();
             result.push(WrappedLine {
-                spans: vec![StyledSpan { text: label, italic: true, ..Default::default() }],
+                spans: vec![StyledSpan {
+                    text: label,
+                    italic: true,
+                    ..Default::default()
+                }],
                 block_index: block_idx,
                 char_start: start,
                 char_end: *char_offset,
@@ -221,7 +269,10 @@ fn flatten_inlines(
                     spans.push(s);
                 }
             }
-            Inline::Link { target, inlines: inner } => {
+            Inline::Link {
+                target,
+                inlines: inner,
+            } => {
                 let inner_spans = flatten_inlines(inner, is_heading, heading_level, is_quote);
                 for mut s in inner_spans {
                     s.link_target = Some(target.clone());
