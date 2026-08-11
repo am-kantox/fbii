@@ -95,9 +95,38 @@ impl App {
                     self.is_running = false;
                 }
             }
+            KeyAction::Select => {
+                if self.mode == AppMode::Library && !self.library_books.is_empty() {
+                    let idx = self.library_view.state.selected().unwrap_or(0);
+                    if let Some(db_book) = self.library_books.get(idx) {
+                        let path = std::path::PathBuf::from(&db_book.file_path);
+                        if let Ok(book) = crate::formats::parse_book_file(&path) {
+                            self.load_book(book);
+                        }
+                    }
+                } else if self.mode == AppMode::Reader && self.reader_view.show_toc {
+                    if let Some(book) = &self.active_book {
+                        let idx = self.reader_view.toc_state.selected().unwrap_or(0);
+                        if let Some(toc_item) = book.toc.get(idx) {
+                            if let Some(layout) = &self.active_layout {
+                                self.reader_view.scroll_offset =
+                                    layout.line_at_char_offset(toc_item.block_index);
+                            }
+                        }
+                    }
+                    self.reader_view.show_toc = false;
+                }
+            }
             KeyAction::ScrollDown => {
                 if self.mode == AppMode::Reader {
-                    if let Some(layout) = &self.active_layout {
+                    if self.reader_view.show_toc {
+                        if let Some(book) = &self.active_book {
+                            let idx = self.reader_view.toc_state.selected().unwrap_or(0);
+                            if idx + 1 < book.toc.len() {
+                                self.reader_view.toc_state.select(Some(idx + 1));
+                            }
+                        }
+                    } else if let Some(layout) = &self.active_layout {
                         if self.reader_view.scroll_offset + 1 < layout.lines.len() {
                             self.reader_view.scroll_offset += 1;
                         }
@@ -111,11 +140,32 @@ impl App {
             }
             KeyAction::ScrollUp => {
                 if self.mode == AppMode::Reader {
-                    self.reader_view.scroll_offset =
-                        self.reader_view.scroll_offset.saturating_sub(1);
+                    if self.reader_view.show_toc {
+                        let idx = self.reader_view.toc_state.selected().unwrap_or(0);
+                        self.reader_view
+                            .toc_state
+                            .select(Some(idx.saturating_sub(1)));
+                    } else {
+                        self.reader_view.scroll_offset =
+                            self.reader_view.scroll_offset.saturating_sub(1);
+                    }
                 } else if !self.library_books.is_empty() {
                     let idx = self.library_view.state.selected().unwrap_or(0);
                     self.library_view.state.select(Some(idx.saturating_sub(1)));
+                }
+            }
+            KeyAction::PageDown => {
+                if self.mode == AppMode::Reader {
+                    if let Some(layout) = &self.active_layout {
+                        self.reader_view.scroll_offset = (self.reader_view.scroll_offset + 25)
+                            .min(layout.lines.len().saturating_sub(1));
+                    }
+                }
+            }
+            KeyAction::PageUp => {
+                if self.mode == AppMode::Reader {
+                    self.reader_view.scroll_offset =
+                        self.reader_view.scroll_offset.saturating_sub(25);
                 }
             }
             KeyAction::HalfPageDown => {

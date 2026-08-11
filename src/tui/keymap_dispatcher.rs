@@ -23,11 +23,11 @@ impl KeymapDispatcher {
             return Some(action);
         }
 
-        // Check if any binding starts with pending_buffer
+        // Check if any binding starts with pending_buffer (excluding exact matches)
         let is_prefix = keymap
             .bindings
             .keys()
-            .any(|k| k.starts_with(&self.pending_buffer));
+            .any(|k| k.len() > self.pending_buffer.len() && k.starts_with(&self.pending_buffer));
 
         if !is_prefix {
             // Check if single key_str matches directly

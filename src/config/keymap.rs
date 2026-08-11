@@ -27,6 +27,7 @@ pub enum KeyAction {
     Command,
     ToggleSimpleMode,
     ToggleCss,
+    Select,
 }
 
 impl std::fmt::Display for KeyAction {
@@ -54,6 +55,7 @@ impl std::fmt::Display for KeyAction {
             KeyAction::Command => "command",
             KeyAction::ToggleSimpleMode => "toggle_simple_mode",
             KeyAction::ToggleCss => "toggle_css",
+            KeyAction::Select => "select",
         };
         write!(f, "{}", name)
     }
@@ -84,9 +86,13 @@ impl Default for KeyMap {
     fn default() -> Self {
         let mut bindings = HashMap::new();
         bindings.insert("j".to_string(), KeyAction::ScrollDown);
+        bindings.insert("Down".to_string(), KeyAction::ScrollDown);
         bindings.insert("k".to_string(), KeyAction::ScrollUp);
+        bindings.insert("Up".to_string(), KeyAction::ScrollUp);
         bindings.insert("ctrl+f".to_string(), KeyAction::PageDown);
+        bindings.insert("PageDown".to_string(), KeyAction::PageDown);
         bindings.insert("ctrl+b".to_string(), KeyAction::PageUp);
+        bindings.insert("PageUp".to_string(), KeyAction::PageUp);
         bindings.insert("ctrl+d".to_string(), KeyAction::HalfPageDown);
         bindings.insert("ctrl+u".to_string(), KeyAction::HalfPageUp);
         bindings.insert("gg".to_string(), KeyAction::GotoTop);
@@ -102,6 +108,8 @@ impl Default for KeyMap {
         bindings.insert("i".to_string(), KeyAction::Info);
         bindings.insert("?".to_string(), KeyAction::Help);
         bindings.insert("q".to_string(), KeyAction::Quit);
+        bindings.insert("Esc".to_string(), KeyAction::Quit);
+        bindings.insert("Enter".to_string(), KeyAction::Select);
         bindings.insert(":".to_string(), KeyAction::Command);
         bindings.insert("S".to_string(), KeyAction::ToggleSimpleMode);
         bindings.insert("C".to_string(), KeyAction::ToggleCss);

@@ -47,6 +47,26 @@ fn test_keymap_dispatcher() {
     let action = dispatcher.handle_event(j_event, &keymap);
     assert_eq!(action, Some(KeyAction::ScrollDown));
 
+    // Arrow Down -> ScrollDown
+    let down_event = KeyEvent::new(KeyCode::Down, KeyModifiers::NONE);
+    let action_down = dispatcher.handle_event(down_event, &keymap);
+    assert_eq!(action_down, Some(KeyAction::ScrollDown));
+
+    // Arrow Up -> ScrollUp
+    let up_event = KeyEvent::new(KeyCode::Up, KeyModifiers::NONE);
+    let action_up = dispatcher.handle_event(up_event, &keymap);
+    assert_eq!(action_up, Some(KeyAction::ScrollUp));
+
+    // Enter -> Select
+    let enter_event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+    let action_enter = dispatcher.handle_event(enter_event, &keymap);
+    assert_eq!(action_enter, Some(KeyAction::Select));
+
+    // Esc -> Quit
+    let esc_event = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
+    let action_esc = dispatcher.handle_event(esc_event, &keymap);
+    assert_eq!(action_esc, Some(KeyAction::Quit));
+
     // Multi-key 'g' then 'g' -> GotoTop
     let g_event = KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE);
     let action1 = dispatcher.handle_event(g_event, &keymap);
