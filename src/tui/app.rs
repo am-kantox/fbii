@@ -397,6 +397,10 @@ impl App {
                                 ratatui::widgets::Paragraph::new(format!("/{}", self.input_buffer))
                                     .style(self.theme.status_style());
                             f.render_widget(prompt, chunks[1]);
+                            f.set_cursor_position((
+                                chunks[1].x + 1 + self.input_buffer.len() as u16,
+                                chunks[1].y,
+                            ));
                         }
                     }
                     AppMode::CommandInput => {
@@ -418,6 +422,10 @@ impl App {
                             ratatui::widgets::Paragraph::new(format!(":{}", self.input_buffer))
                                 .style(self.theme.status_style());
                         f.render_widget(prompt, chunks[1]);
+                        f.set_cursor_position((
+                            chunks[1].x + 1 + self.input_buffer.len() as u16,
+                            chunks[1].y,
+                        ));
                     }
                     AppMode::OpenFileInput => {
                         let chunks = ratatui::layout::Layout::default()
@@ -440,6 +448,10 @@ impl App {
                         ))
                         .style(self.theme.status_style());
                         f.render_widget(prompt, chunks[1]);
+                        f.set_cursor_position((
+                            chunks[1].x + 11 + self.input_buffer.len() as u16,
+                            chunks[1].y,
+                        ));
                     }
                 }
             })?;
@@ -482,6 +494,7 @@ impl App {
                                 match key_event.code {
                                     crossterm::event::KeyCode::Enter => {
                                         let query = self.input_buffer.clone();
+                                        self.input_buffer.clear();
                                         self.mode = AppMode::Reader;
                                         if let Some(index) = &self.search_index {
                                             self.search_matches = index.search(&query);
