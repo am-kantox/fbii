@@ -1,6 +1,9 @@
 use clap::Parser;
 use tabook::cli::CliArgs;
 use tabook::config::Config;
+use tabook::db::LibraryDb;
+use tabook::formats::parse_book_file;
+use tabook::tui::App;
 use tabook::utils::Result;
 
 #[tokio::main]
@@ -17,12 +20,36 @@ async fn main() -> Result<()> {
         config.theme = theme_override;
     }
 
-    println!("tabook v{}", env!("CARGO_PKG_VERSION"));
+    let db_path = config
+        .db_path
+        .as_ref()
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            dirs::config_dir()
+                .unwrap_or_else(|| std::path::PathBuf::from("."))
+                .join("tabook")
+                .join("library.db")
+        });
+
+    let db = LibraryDb::new_at_path(&db_path).await?;
+    let mut app = App::new(config, db);
+
     if let Some(file_path) = args.file_path {
-        println!("Opening file: {}", file_path.display());
-    } else {
-        println!("Opening library mode...");
+        match parse_book_file(&file_path) {
+            Ok(book) => {
+                app.db.upsert_book(&book, 0, 0.0).await?;
+                app.load_book(book);
+            }
+            Err(e) => {
+                eprintln!("Error opening e-book file '{}': {}", file_path.display(), e);
+                std::process::exit(1);
+            }
+        }
+    } else if args.library {
+        app.mode = tabook::tui::AppMode::Library;
     }
+
+    app.run_tui().await?;
 
     Ok(())
 }
