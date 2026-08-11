@@ -1,9 +1,11 @@
 pub mod cli;
 pub mod config;
+pub mod db;
 pub mod formats;
 pub mod utils;
 
 pub use cli::CliArgs;
 pub use config::Config;
+pub use db::LibraryDb;
 pub use formats::{Block, Book, BookFormat, Inline, Metadata};
 pub use utils::{AppError, Result};
