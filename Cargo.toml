@@ -21,6 +21,8 @@ encoding_rs = "0.8"
 unicode-width = "0.2"
 unicode-normalization = "0.1"
 ratatui-image = "3.0"
+base64 = "0.22"
+sha1 = "0.10"
 thiserror = "2.0"
 anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
