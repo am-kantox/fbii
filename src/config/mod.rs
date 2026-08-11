@@ -46,11 +46,9 @@ impl Config {
     }
 
     pub fn default_config_path() -> PathBuf {
-        if let Some(config_dir) = dirs::config_dir() {
-            config_dir.join("tabook").join("config.toml")
-        } else {
-            PathBuf::from("config.toml")
-        }
+        dirs::config_dir()
+            .map(|config_dir| config_dir.join("fbii").join("config.toml"))
+            .unwrap_or_else(|| PathBuf::from("config.toml"))
     }
 
     pub fn clamp_and_validate(&mut self) -> Result<()> {

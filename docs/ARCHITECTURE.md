@@ -1,6 +1,6 @@
 # System Architecture & Design Specification
 
-`tabook` (Rust edition) is a terminal e-book reader for **FB2**, **FB2.ZIP**, and **EPUB (2.x/3.x)** written in Rust.
+`fbii` (Rust edition) is a terminal e-book reader for **FB2**, **FB2.ZIP**, and **EPUB (2.x/3.x)** written in Rust.
 
 ## System Components
 
@@ -41,10 +41,10 @@
 ## Architectural Layers
 
 1. **CLI Layer (`src/cli/`)**:
-   - `clap` struct for flag parsing (`tabook [file]`, `--library`, `--theme`, `--config`).
+   - `clap` struct for flag parsing (`fbii [file]`, `--library`, `--theme`, `--config`).
 
 2. **Configuration (`src/config/`)**:
-   - Loads defaults, merges user overrides from `~/.config/tabook/config.toml`.
+   - Loads defaults, merges user overrides from `~/.config/fbii/config.toml`.
    - Normalizes keybindings and validates conflict invariants.
 
 3. **Format Parsers (`src/formats/`)**:

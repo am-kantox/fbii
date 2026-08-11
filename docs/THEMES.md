@@ -1,6 +1,6 @@
 # Theme Catalog & Customization
 
-`tabook` features a built-in color theme system powered by Ratatui color tokens (`src/themes/catalog.rs`).
+`fbii` features a built-in color theme system powered by Ratatui color tokens (`src/themes/catalog.rs`).
 
 ## Built-in Themes
 
@@ -13,7 +13,7 @@
 
 ## Configuring Themes
 
-In `~/.config/tabook/config.toml`:
+In `~/.config/fbii/config.toml`:
 
 ```toml
 theme = "dracula" # Options: "dracula", "monokai", "github-dark", "github-light"
@@ -22,5 +22,5 @@ theme = "dracula" # Options: "dracula", "monokai", "github-dark", "github-light"
 Or pass via CLI flag:
 
 ```bash
-tabook --theme monokai /path/to/book.epub
+fbii --theme monokai /path/to/book.epub
 ```

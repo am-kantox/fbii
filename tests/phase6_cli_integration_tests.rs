@@ -1,19 +1,19 @@
 use clap::Parser;
-use tabook::cli::CliArgs;
-use tabook::config::Config;
-use tabook::db::LibraryDb;
-use tabook::formats::parse_book_file;
-use tabook::tui::{App, AppMode};
+use fbii::cli::CliArgs;
+use fbii::config::Config;
+use fbii::db::LibraryDb;
+use fbii::formats::parse_book_file;
+use fbii::tui::{App, AppMode};
 use tempfile::NamedTempFile;
 
 #[test]
 fn test_cli_argument_parsing() {
-    let args = CliArgs::parse_from(["tabook", "--theme", "monokai", "--library"]);
+    let args = CliArgs::parse_from(["fbii", "--theme", "monokai", "--library"]);
     assert_eq!(args.theme, Some("monokai".to_string()));
     assert!(args.library);
     assert!(args.file_path.is_none());
 
-    let args_file = CliArgs::parse_from(["tabook", "/path/to/book.epub"]);
+    let args_file = CliArgs::parse_from(["fbii", "/path/to/book.epub"]);
     assert_eq!(
         args_file.file_path.unwrap().to_str().unwrap(),
         "/path/to/book.epub"

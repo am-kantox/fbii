@@ -3,10 +3,10 @@ use std::path::PathBuf;
 
 #[derive(Parser, Debug, Clone)]
 #[command(
-    name = "tabook",
+    name = "fbii",
     author,
     version,
-    about = "A terminal e-book reader for FB2, FB2-in-ZIP and EPUB with vim-like controls built in Rust",
+    about = "A terminal e-book reader for FB2, FB2-in-ZIP and EPUB (2.x / 3.x) with vim-like controls",
     long_about = None
 )]
 pub struct CliArgs {

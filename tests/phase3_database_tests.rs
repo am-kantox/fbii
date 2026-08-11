@@ -1,5 +1,5 @@
-use tabook::db::LibraryDb;
-use tabook::formats::model::{Book, BookFormat, Metadata};
+use fbii::db::LibraryDb;
+use fbii::formats::model::{Book, BookFormat, Metadata};
 
 #[tokio::test]
 async fn test_database_book_upsert_and_queries() {

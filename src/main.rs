@@ -1,10 +1,10 @@
 use clap::Parser;
-use tabook::cli::CliArgs;
-use tabook::config::Config;
-use tabook::db::LibraryDb;
-use tabook::formats::parse_book_file;
-use tabook::tui::App;
-use tabook::utils::Result;
+use fbii::cli::CliArgs;
+use fbii::config::Config;
+use fbii::db::LibraryDb;
+use fbii::formats::parse_book_file;
+use fbii::tui::App;
+use fbii::utils::Result;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -27,7 +27,7 @@ async fn main() -> Result<()> {
         .unwrap_or_else(|| {
             dirs::config_dir()
                 .unwrap_or_else(|| std::path::PathBuf::from("."))
-                .join("tabook")
+                .join("fbii")
                 .join("library.db")
         });
 
@@ -46,7 +46,7 @@ async fn main() -> Result<()> {
             }
         }
     } else if args.library {
-        app.mode = tabook::tui::AppMode::Library;
+        app.mode = fbii::tui::AppMode::Library;
     }
 
     app.run_tui().await?;

@@ -1,9 +1,9 @@
+use fbii::formats::epub::parse_epub;
+use fbii::formats::fb2::parse_fb2_bytes;
+use fbii::formats::model::Block;
+use fbii::formats::parse_book_file;
 use std::io::Write;
 use std::path::Path;
-use tabook::formats::epub::parse_epub;
-use tabook::formats::fb2::parse_fb2_bytes;
-use tabook::formats::model::Block;
-use tabook::formats::parse_book_file;
 use tempfile::NamedTempFile;
 use zip::write::SimpleFileOptions;
 
@@ -49,7 +49,7 @@ fn test_fb2_parser_xml_decoding_and_structure() {
             assert_eq!(inlines[0].plain_text(), "Sooner or later it was ");
             assert_eq!(
                 inlines[1],
-                tabook::formats::model::Inline::Bold(vec![tabook::formats::model::Inline::Text(
+                fbii::formats::model::Inline::Bold(vec![fbii::formats::model::Inline::Text(
                     "bound".to_string()
                 )])
             );

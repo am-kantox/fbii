@@ -1,67 +1,37 @@
-# Database Architecture & Schema
+# SQLite Database Layer
 
-`tabook` uses an embedded **SQLite** database (`sqlx` runtime) located at `~/.config/tabook/library.db` (or custom path specified in `config.toml`).
+`fbii` uses an embedded **SQLite** database (`sqlx` runtime) located at `~/.config/fbii/library.db` (or custom path specified in `config.toml`).
 
-## Tables
+## Schema Design
 
 ### `books`
-Stores metadata and reading position for library books.
-
-```sql
-CREATE TABLE IF NOT EXISTS books (
-    id TEXT PRIMARY KEY NOT NULL,
-    file_path TEXT UNIQUE NOT NULL,
-    title TEXT NOT NULL,
-    authors TEXT NOT NULL,
-    series_name TEXT,
-    series_index INTEGER,
-    genres TEXT NOT NULL,
-    annotation TEXT,
-    cover_image_key TEXT,
-    format TEXT NOT NULL,
-    progress_offset INTEGER NOT NULL DEFAULT 0,
-    progress_percent REAL NOT NULL DEFAULT 0.0,
-    added_at DATETIME NOT NULL,
-    updated_at DATETIME NOT NULL
-);
-```
+- `id` (TEXT PRIMARY KEY) — SHA1/MD5 hash of book content or path.
+- `title` (TEXT NOT NULL)
+- `authors` (TEXT NOT NULL) — Comma-separated author list.
+- `series_name` (TEXT)
+- `series_index` (INTEGER)
+- `format` (TEXT NOT NULL) — `fb2`, `fb2.zip`, or `epub`.
+- `path` (TEXT NOT NULL UNIQUE)
+- `added_at` (DATETIME NOT NULL)
+- `last_read_at` (DATETIME)
+- `progress_offset` (INTEGER DEFAULT 0) — Reading position character offset.
+- `progress_percent` (REAL DEFAULT 0.0) — Percentage progress (0.0 to 100.0).
 
 ### `bookmarks`
-Stores text bookmarks with labels and exact character offsets.
-
-```sql
-CREATE TABLE IF NOT EXISTS bookmarks (
-    id TEXT PRIMARY KEY NOT NULL,
-    book_id TEXT NOT NULL,
-    char_offset INTEGER NOT NULL,
-    label TEXT NOT NULL,
-    created_at DATETIME NOT NULL,
-    FOREIGN KEY(book_id) REFERENCES books(id) ON DELETE CASCADE
-);
-```
+- `id` (INTEGER PRIMARY KEY AUTOINCREMENT)
+- `book_id` (TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE)
+- `char_offset` (INTEGER NOT NULL)
+- `snippet` (TEXT NOT NULL)
+- `created_at` (DATETIME NOT NULL)
 
 ### `reading_sessions`
-Tracks reading session statistics (start time, end time, pages read).
-
-```sql
-CREATE TABLE IF NOT EXISTS reading_sessions (
-    id TEXT PRIMARY KEY NOT NULL,
-    book_id TEXT NOT NULL,
-    start_time DATETIME NOT NULL,
-    end_time DATETIME,
-    pages_read INTEGER NOT NULL DEFAULT 0,
-    FOREIGN KEY(book_id) REFERENCES books(id) ON DELETE CASCADE
-);
-```
+- `id` (TEXT PRIMARY KEY)
+- `book_id` (TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE)
+- `start_time` (DATETIME NOT NULL)
+- `end_time` (DATETIME)
+- `pages_read` (INTEGER DEFAULT 0)
 
 ### `history`
-Maintains recent open history.
-
-```sql
-CREATE TABLE IF NOT EXISTS history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    book_id TEXT NOT NULL,
-    opened_at DATETIME NOT NULL,
-    FOREIGN KEY(book_id) REFERENCES books(id) ON DELETE CASCADE
-);
-```
+- `id` (INTEGER PRIMARY KEY AUTOINCREMENT)
+- `book_id` (TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE)
+- `opened_at` (DATETIME NOT NULL)

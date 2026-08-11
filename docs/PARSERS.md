@@ -1,28 +1,26 @@
-# Format Parsers & Normalization Rules
+# Format Parsers & Encoding Normalization
 
-`tabook` parses e-book files into a format-neutral document representation defined in `src/formats/model.rs`.
+`fbii` parses e-book files into a format-neutral document representation defined in `src/formats/model.rs`.
 
 ## Supported Formats
 
-| Format | File Extensions | Parser Module | Parsing Strategy |
-| :--- | :--- | :--- | :--- |
-| **FB2** | `.fb2`, `.xml` | `src/formats/fb2.rs` | XML DOM parsing using `roxmltree` + `encoding_rs` character decoding. Extracts `<description>` metadata, base64 `<binary>` image resources, `<section>` titles/body blocks. |
-| **FB2.ZIP** | `.fb2.zip` | `src/formats/fb2.rs` | ZIP archive extraction via `zip` crate. Locates embedded `.fb2` / `.xml` file and parses as FB2. |
-| **EPUB** | `.epub` | `src/formats/epub.rs` | Standard EPUB 2.x/3.x extraction: parses `META-INF/container.xml` to locate `.opf`, reads manifest & spine, parses NCX/NAV Table of Contents, extracts chapter XHTML blocks into `Block` tree. |
+1. **FictionBook 2.0 / 2.1 (`.fb2`)**:
+   - Parsed with `roxmltree`.
+   - Extracts metadata (title, author, series, annotation, genres, coverpage).
+   - Extracts body sections, block quotes, epigraphs, poems, and base64 encoded binary images.
 
-## Normalization Pipeline
+2. **Zipped FictionBook (`.fb2.zip`)**:
+   - Reads ZIP container via `zip` crate.
+   - Parses contained XML file using `parse_fb2_bytes`.
 
-1. **Encoding Auto-detection (`src/formats/encoding.rs`)**:
-   - Detects UTF-8 BOM, UTF-16 BOM, and `<?xml ... encoding="..." ?>` header declarations.
-   - Decodes bytes using `encoding_rs` (supports Windows-1251, ISO-8859-1, UTF-8, etc.).
+3. **EPUB 2.x / 3.x (`.epub`)**:
+   - Parses `META-INF/container.xml` to find `.opf` package root.
+   - Extracts OPF metadata, manifest items, and spine reading order.
+   - Extracts Table of Contents from NCX (`toc.ncx`) or EPUB 3 Navigation Document (`nav.xhtml`).
+   - Strips DOCTYPE declarations to prevent XML parser DTD resolution errors.
 
-2. **Block Types**:
-   - `Paragraph(Vec<Inline>)`: Paragraphs of inline elements.
-   - `Heading { level: u8, inlines: Vec<Inline> }`: H1-H6 headers.
-   - `Quote(Vec<Block>)`: Block quotes and cites.
-   - `Epigraph(Vec<Block>)`: Chapter epigraphs.
-   - `List { ordered: bool, items: Vec<ListItem> }`: Ordered and unordered lists.
-   - `Table { rows: Vec<TableRow> }`: Structured tables.
-   - `Poem { stanzas: Vec<PoemStanza> }`: Verse stanzas and poem lines.
-   - `Image { key: String, alt: Option<String> }`: Inline or block image references matching `resources` HashMap.
-   - `Empty`: Paragraph spacing / empty line breaks.
+## Encoding & Character Sets (`src/formats/encoding.rs`)
+
+- Checks BOM bytes (`UTF-8`, `UTF-16LE`, `UTF-16BE`).
+- Parses XML header declarations (e.g. `<?xml version="1.0" encoding="windows-1251"?>`).
+- Decodes non-UTF8 text into native Rust `String` using `encoding_rs`.

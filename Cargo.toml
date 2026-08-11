@@ -1,8 +1,8 @@
 [package]
-name = "tabook"
+name = "fbii"
 version = "0.1.0"
 edition = "2021"
-authors = ["Tabook Authors"]
+authors = ["FBII Authors"]
 description = "A terminal e-book reader for FB2, FB2-in-ZIP and EPUB with vim-like controls built in Rust"
 license = "MIT"
 

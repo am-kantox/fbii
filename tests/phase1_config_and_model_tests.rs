@@ -1,6 +1,6 @@
-use tabook::config::{Config, KeyAction, KeyMap};
-use tabook::formats::model::{Block, Inline, ListItem, PoemStanza, TableCell, TableRow};
-use tabook::utils::AppError;
+use fbii::config::{Config, KeyAction, KeyMap};
+use fbii::formats::model::{Block, Inline, ListItem, PoemStanza, TableCell, TableRow};
+use fbii::utils::AppError;
 
 #[test]
 fn test_default_config_loading() {
@@ -27,7 +27,7 @@ fn test_config_clamping_and_normalization() {
 fn test_config_toml_roundtrip() {
     let config = Config {
         theme: "monokai".to_string(),
-        typography: tabook::config::TypographyConfig {
+        typography: fbii::config::TypographyConfig {
             measure: 75,
             ..Default::default()
         },
@@ -44,14 +44,14 @@ fn test_config_toml_roundtrip() {
 
 #[test]
 fn test_key_normalization() {
-    assert_eq!(tabook::config::keymap::normalize_key("CTRL+d"), "ctrl+d");
+    assert_eq!(fbii::config::keymap::normalize_key("CTRL+d"), "ctrl+d");
     assert_eq!(
-        tabook::config::keymap::normalize_key("Ctrl+Alt+h"),
+        fbii::config::keymap::normalize_key("Ctrl+Alt+h"),
         "alt+ctrl+h"
     );
-    assert_eq!(tabook::config::keymap::normalize_key("j"), "j");
-    assert_eq!(tabook::config::keymap::normalize_key("Enter"), "Enter");
-    assert_eq!(tabook::config::keymap::normalize_key("Esc"), "Esc");
+    assert_eq!(fbii::config::keymap::normalize_key("j"), "j");
+    assert_eq!(fbii::config::keymap::normalize_key("Enter"), "Enter");
+    assert_eq!(fbii::config::keymap::normalize_key("Esc"), "Esc");
 }
 
 #[test]

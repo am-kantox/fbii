@@ -1,10 +1,10 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use tabook::config::{Config, KeyAction, KeyMap};
-use tabook::db::LibraryDb;
-use tabook::formats::model::{Block, Book, Inline, Metadata};
-use tabook::themes::Theme;
-use tabook::tui::keymap_dispatcher::{format_key_event, KeymapDispatcher};
-use tabook::tui::{App, AppMode};
+use fbii::config::{Config, KeyAction, KeyMap};
+use fbii::db::LibraryDb;
+use fbii::formats::model::{Block, Book, Inline, Metadata};
+use fbii::themes::Theme;
+use fbii::tui::keymap_dispatcher::{format_key_event, KeymapDispatcher};
+use fbii::tui::{App, AppMode};
 
 #[test]
 fn test_theme_catalog() {

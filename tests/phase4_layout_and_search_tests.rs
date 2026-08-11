@@ -1,7 +1,7 @@
-use tabook::config::TypographyConfig;
-use tabook::formats::model::{Block, Book, Inline, Metadata};
-use tabook::renderer::{simplify_blocks, BookLayout};
-use tabook::search::{fold_str, BookSearchIndex};
+use fbii::config::TypographyConfig;
+use fbii::formats::model::{Block, Book, Inline, Metadata};
+use fbii::renderer::{simplify_blocks, BookLayout};
+use fbii::search::{fold_str, BookSearchIndex};
 
 #[test]
 fn test_layout_word_wrapping_and_measure() {

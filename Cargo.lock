@@ -780,6 +780,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "caf1079563223d5d59d83c85886a56e586cfd5c1a26292e971a0fa266531ac5a"
 
 [[package]]
+name = "fbii"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "chrono",
+ "clap",
+ "crossterm",
+ "dirs",
+ "encoding_rs",
+ "futures",
+ "ratatui",
+ "ratatui-image",
+ "roxmltree",
+ "serde",
+ "sha1",
+ "sqlx",
+ "tempfile",
+ "thiserror 2.0.20",
+ "tokio",
+ "toml",
+ "unicode-normalization",
+ "unicode-width 0.2.0",
+ "zip",
+]
+
+[[package]]
 name = "fdeflate"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2667,33 +2694,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
-]
-
-[[package]]
-name = "tabook"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "chrono",
- "clap",
- "crossterm",
- "dirs",
- "encoding_rs",
- "futures",
- "ratatui",
- "ratatui-image",
- "roxmltree",
- "serde",
- "sha1",
- "sqlx",
- "tempfile",
- "thiserror 2.0.20",
- "tokio",
- "toml",
- "unicode-normalization",
- "unicode-width 0.2.0",
- "zip",
 ]
 
 [[package]]

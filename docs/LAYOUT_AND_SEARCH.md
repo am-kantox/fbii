@@ -1,6 +1,6 @@
 # Layout Engine & Search Architecture
 
-`tabook` separates document parsing from terminal line wrapping and search indexing.
+`fbii` separates document parsing from terminal line wrapping and search indexing.
 
 ## Document Layout Engine (`src/renderer/layout.rs`)
 
