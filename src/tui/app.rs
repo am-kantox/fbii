@@ -69,7 +69,7 @@ impl App {
         }
     }
 
-    pub fn load_book(&mut self, book: Book) {
+    pub async fn load_book(&mut self, book: Book) {
         let layout = BookLayout::build(
             &book,
             &self.config.typography,
@@ -77,10 +77,15 @@ impl App {
         );
         let search_index = BookSearchIndex::build(&book);
 
+        let mut saved_offset = 0;
+        if let Ok(Some(db_book)) = self.db.get_book_by_id(&book.id).await {
+            saved_offset = db_book.progress_offset as usize;
+        }
+
         self.active_book = Some(book);
         self.active_layout = Some(layout);
         self.search_index = Some(search_index);
-        self.reader_view.scroll_offset = 0;
+        self.reader_view.scroll_offset = saved_offset;
         self.mode = AppMode::Reader;
     }
 
@@ -89,9 +94,21 @@ impl App {
         Ok(())
     }
 
-    pub fn handle_action(&mut self, action: KeyAction) {
+    pub async fn save_progress(&self) {
+        if let (Some(book), Some(layout)) = (&self.active_book, &self.active_layout) {
+            let offset = self.reader_view.scroll_offset;
+            let total = layout.lines.len().max(1);
+            let percent = (offset as f64 / total as f64) * 100.0;
+            let _ = self.db.upsert_book(book, offset, percent).await;
+        }
+    }
+
+    pub async fn handle_action(&mut self, action: KeyAction) {
         match action {
             KeyAction::Quit => {
+                if self.mode == AppMode::Reader {
+                    self.save_progress().await;
+                }
                 if self.reader_view.show_themes {
                     self.reader_view.show_themes = false;
                 } else if self.reader_view.show_info {
@@ -118,16 +135,7 @@ impl App {
                 }
             }
             KeyAction::SaveToLibrary => {
-                if let (Some(book), Some(layout)) = (&self.active_book, &self.active_layout) {
-                    let offset = self.reader_view.scroll_offset;
-                    let total = layout.lines.len().max(1);
-                    let percent = (offset as f64 / total as f64) * 100.0;
-                    let book_clone = book.clone();
-                    let db = self.db.clone();
-                    tokio::spawn(async move {
-                        let _ = db.upsert_book(&book_clone, offset, percent).await;
-                    });
-                }
+                self.save_progress().await;
             }
             KeyAction::Search => {
                 if self.mode == AppMode::Reader {
@@ -142,16 +150,31 @@ impl App {
             KeyAction::AddBookmark => {
                 if self.mode == AppMode::Reader {
                     if let (Some(book), Some(layout)) = (&self.active_book, &self.active_layout) {
-                        let offset = layout
-                            .lines
-                            .get(self.reader_view.scroll_offset)
-                            .map(|l| l.char_start)
-                            .unwrap_or(0);
-                        let label = format!("Line {}", self.reader_view.scroll_offset + 1);
+                        let line_idx = self.reader_view.scroll_offset;
+                        let (offset, snippet) = if let Some(line) = layout.lines.get(line_idx) {
+                            let text_spans: Vec<String> =
+                                line.spans.iter().map(|s| s.text.clone()).collect();
+                            let full_line = text_spans.join("").trim().to_string();
+                            let preview = if full_line.chars().count() > 50 {
+                                let tr: String = full_line.chars().take(47).collect();
+                                format!("{}...", tr)
+                            } else if full_line.is_empty() {
+                                "Empty line".to_string()
+                            } else {
+                                full_line
+                            };
+                            (
+                                line.char_start,
+                                format!("Line {}: \"{}\"", line_idx + 1, preview),
+                            )
+                        } else {
+                            (0, format!("Line {}", line_idx + 1))
+                        };
+
                         let book_id = book.id.clone();
                         let db = self.db.clone();
                         tokio::spawn(async move {
-                            let _ = db.add_bookmark(&book_id, offset, &label).await;
+                            let _ = db.add_bookmark(&book_id, offset, &snippet).await;
                         });
                     }
                 }
@@ -210,7 +233,7 @@ impl App {
                     if let Some(db_book) = self.library_books.get(idx) {
                         let path = std::path::PathBuf::from(&db_book.file_path);
                         if let Ok(book) = crate::formats::parse_book_file(&path) {
-                            self.load_book(book);
+                            self.load_book(book).await;
                         }
                     }
                 } else if self.mode == AppMode::Reader && self.reader_view.show_toc {
@@ -462,6 +485,23 @@ impl App {
             tokio::select! {
                 Some(Ok(event)) = event_stream.next() => {
                     if let Event::Key(key_event) = event {
+                        // Support Ctrl+V paste in input modes
+                        if (self.mode == AppMode::SearchInput
+                            || self.mode == AppMode::CommandInput
+                            || self.mode == AppMode::OpenFileInput)
+                            && key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
+                            && (key_event.code == crossterm::event::KeyCode::Char('v')
+                                || key_event.code == crossterm::event::KeyCode::Char('V'))
+                        {
+                            if let Ok(mut clipboard) = arboard::Clipboard::new() {
+                                if let Ok(text) = clipboard.get_text() {
+                                    let clean_text = text.replace('\r', "").replace('\n', " ");
+                                    self.input_buffer.push_str(&clean_text);
+                                }
+                            }
+                            continue;
+                        }
+
                         match self.mode {
                             AppMode::OpenFileInput => {
                                 match key_event.code {
@@ -470,12 +510,7 @@ impl App {
                                         self.input_buffer.clear();
                                         let path = std::path::PathBuf::from(&path_str);
                                         if let Ok(book) = crate::formats::parse_book_file(&path) {
-                                            self.load_book(book);
-                                            let book_clone = self.active_book.clone().unwrap();
-                                            let db = self.db.clone();
-                                            tokio::spawn(async move {
-                                                let _ = db.upsert_book(&book_clone, 0, 0.0).await;
-                                            });
+                                            self.load_book(book).await;
                                         } else {
                                             self.mode = AppMode::Library;
                                         }
@@ -542,6 +577,45 @@ impl App {
                                             }
                                         } else if cmd == "qa" || cmd == "quitall" {
                                             self.is_running = false;
+                                        } else if cmd == "config edit" || cmd == "config" {
+                                            let config_path = crate::config::Config::default_config_path();
+                                            if let Some(parent) = config_path.parent() {
+                                                let _ = std::fs::create_dir_all(parent);
+                                            }
+                                            if !config_path.exists() {
+                                                if let Ok(default_toml) = self.config.serialize_to_toml() {
+                                                    let _ = std::fs::write(&config_path, default_toml);
+                                                }
+                                            }
+                                            let editor = std::env::var("EDITOR")
+                                                .or_else(|_| std::env::var("VISUAL"))
+                                                .unwrap_or_else(|_| "nano".to_string());
+
+                                            let _ = disable_raw_mode();
+                                            let _ = stdout().execute(LeaveAlternateScreen);
+
+                                            let child = std::process::Command::new(editor)
+                                                .arg(&config_path)
+                                                .spawn();
+                                            if let Ok(mut child) = child {
+                                                let _ = child.wait();
+                                            }
+
+                                            let _ = enable_raw_mode();
+                                            let _ = stdout().execute(EnterAlternateScreen);
+
+                                            if let Ok(new_config) = crate::config::Config::load_from_file(&config_path) {
+                                                self.config = new_config;
+                                                self.theme = Theme::get_by_name(&self.config.theme);
+                                                if let Some(book) = &self.active_book {
+                                                    let layout = BookLayout::build(
+                                                        book,
+                                                        &self.config.typography,
+                                                        self.config.display.simplified_mode,
+                                                    );
+                                                    self.active_layout = Some(layout);
+                                                }
+                                            }
                                         } else if cmd == "themes" || cmd == "theme" {
                                             self.reader_view.show_themes = true;
                                         } else if let Some(theme_name) = cmd.strip_prefix("theme ") {
@@ -550,19 +624,14 @@ impl App {
                                         } else if let Some(path_str) = cmd.strip_prefix("open ").or_else(|| cmd.strip_prefix("o ")) {
                                             let path = std::path::PathBuf::from(path_str.trim());
                                             if let Ok(book) = crate::formats::parse_book_file(&path) {
-                                                self.load_book(book);
-                                                let book_clone = self.active_book.clone().unwrap();
-                                                let db = self.db.clone();
-                                                tokio::spawn(async move {
-                                                    let _ = db.upsert_book(&book_clone, 0, 0.0).await;
-                                                });
+                                                self.load_book(book).await;
                                             }
                                         } else if cmd == "w" || cmd == "save" {
-                                            self.handle_action(KeyAction::SaveToLibrary);
+                                            self.handle_action(KeyAction::SaveToLibrary).await;
                                         } else if cmd == "b" || cmd == "bookmark" {
-                                            self.handle_action(KeyAction::AddBookmark);
+                                            self.handle_action(KeyAction::AddBookmark).await;
                                         } else if cmd == "bl" || cmd == "bookmarks" {
-                                            self.handle_action(KeyAction::ListBookmarks);
+                                            self.handle_action(KeyAction::ListBookmarks).await;
                                         } else if cmd == "toc" || cmd == "t" {
                                             self.reader_view.show_toc = true;
                                         } else if cmd == "info" || cmd == "i" {
@@ -570,9 +639,9 @@ impl App {
                                         } else if cmd == "help" || cmd == "h" {
                                             self.reader_view.show_help = true;
                                         } else if cmd == "simple" || cmd == "s" {
-                                            self.handle_action(KeyAction::ToggleSimpleMode);
+                                            self.handle_action(KeyAction::ToggleSimpleMode).await;
                                         } else if cmd == "css" {
-                                            self.handle_action(KeyAction::ToggleCss);
+                                            self.handle_action(KeyAction::ToggleCss).await;
                                         } else if let Ok(line_num) = cmd.parse::<usize>() {
                                             if line_num > 0 {
                                                 self.reader_view.scroll_offset = line_num.saturating_sub(1);
@@ -605,7 +674,7 @@ impl App {
                             }
                             _ => {
                                 if let Some(action) = self.key_dispatcher.handle_event(key_event, &self.config.keymap) {
-                                    self.handle_action(action);
+                                    self.handle_action(action).await;
                                 }
                             }
                         }

@@ -95,7 +95,7 @@ impl ReaderView {
         let reader_widget = Paragraph::new(paragraph_lines).style(theme.base_style());
         f.render_widget(reader_widget, chunks[0]);
 
-        // Calculate progress %
+        // Calculate progress % and progress bar
         let total_lines = layout.lines.len();
         let progress_percent = if total_lines == 0 {
             0.0
@@ -104,10 +104,20 @@ impl ReaderView {
                 * 100.0
         };
 
+        let bar_width = 12;
+        let filled_len = ((progress_percent / 100.0) * bar_width as f64).round() as usize;
+        let filled_len = filled_len.min(bar_width);
+        let progress_bar = format!(
+            "[{}{}]",
+            "█".repeat(filled_len),
+            "░".repeat(bar_width - filled_len)
+        );
+
         let status_text = format!(
-            " {} - {} | Line {}/{} ({:.1}%) | [?] Help ",
+            " {} - {} | {} Line {}/{} ({:.1}%) | [?] Help ",
             book.metadata.title,
             book.metadata.authors.join(", "),
+            progress_bar,
             self.scroll_offset + 1,
             total_lines.max(1),
             progress_percent
@@ -143,15 +153,15 @@ impl ReaderView {
     }
 
     pub fn render_bookmarks_modal(&mut self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let modal_area = centered_rect(60, 60, area);
+        let modal_area = centered_rect(70, 60, area);
         f.render_widget(Clear, modal_area);
 
         let items: Vec<ListItem> = self
             .bookmark_items
             .iter()
             .map(|b| {
-                ListItem::new(format!("Offset {}: {}", b.char_offset, b.label))
-                    .style(theme.base_style())
+                let text = format!(" 📍 {}", b.label);
+                ListItem::new(text).style(theme.base_style())
             })
             .collect();
 

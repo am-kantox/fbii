@@ -100,49 +100,49 @@ async fn test_app_action_handling() {
         Block::Paragraph(vec![Inline::Text("Line 3".to_string())]),
     ];
 
-    app.load_book(book);
+    app.load_book(book).await;
     assert_eq!(app.mode, AppMode::Reader);
     assert_eq!(app.reader_view.scroll_offset, 0);
 
     // Test scroll actions
-    app.handle_action(KeyAction::ScrollDown);
+    app.handle_action(KeyAction::ScrollDown).await;
     assert_eq!(app.reader_view.scroll_offset, 1);
 
-    app.handle_action(KeyAction::ScrollUp);
+    app.handle_action(KeyAction::ScrollUp).await;
     assert_eq!(app.reader_view.scroll_offset, 0);
 
     // Test GotoTop & GotoBottom
-    app.handle_action(KeyAction::GotoBottom);
+    app.handle_action(KeyAction::GotoBottom).await;
     assert!(app.reader_view.scroll_offset > 0);
 
-    app.handle_action(KeyAction::GotoTop);
+    app.handle_action(KeyAction::GotoTop).await;
     assert_eq!(app.reader_view.scroll_offset, 0);
 
     // Test Info modal toggle
-    app.handle_action(KeyAction::Info);
+    app.handle_action(KeyAction::Info).await;
     assert!(app.reader_view.show_info);
-    app.handle_action(KeyAction::Quit);
+    app.handle_action(KeyAction::Quit).await;
     assert!(!app.reader_view.show_info);
 
     // Test OpenFile action
-    app.handle_action(KeyAction::OpenFile);
+    app.handle_action(KeyAction::OpenFile).await;
     assert_eq!(app.mode, AppMode::OpenFileInput);
     app.mode = AppMode::Reader;
 
     // Test TOC modal toggle
-    app.handle_action(KeyAction::Toc);
+    app.handle_action(KeyAction::Toc).await;
     assert!(app.reader_view.show_toc);
 
     // Quit while TOC is open closes TOC
-    app.handle_action(KeyAction::Quit);
+    app.handle_action(KeyAction::Quit).await;
     assert!(!app.reader_view.show_toc);
     assert_eq!(app.mode, AppMode::Reader);
 
     // Quit while in Reader switches to Library
-    app.handle_action(KeyAction::Quit);
+    app.handle_action(KeyAction::Quit).await;
     assert_eq!(app.mode, AppMode::Library);
 
     // Quit while in Library stops app
-    app.handle_action(KeyAction::Quit);
+    app.handle_action(KeyAction::Quit).await;
     assert!(!app.is_running);
 }

@@ -44,7 +44,7 @@ async fn test_full_lifecycle_open_file_and_db_persistence() {
 
     let book = parse_book_file(&fb2_path).unwrap();
     app.db.upsert_book(&book, 0, 0.0).await.unwrap();
-    app.load_book(book);
+    app.load_book(book).await;
 
     assert_eq!(app.mode, AppMode::Reader);
     assert_eq!(

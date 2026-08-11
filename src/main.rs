@@ -38,7 +38,7 @@ async fn main() -> Result<()> {
         match parse_book_file(&file_path) {
             Ok(book) => {
                 app.db.upsert_book(&book, 0, 0.0).await?;
-                app.load_book(book);
+                app.load_book(book).await;
             }
             Err(e) => {
                 eprintln!("Error opening e-book file '{}': {}", file_path.display(), e);
