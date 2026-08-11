@@ -15,6 +15,36 @@ pub struct Theme {
 }
 
 impl Theme {
+    pub fn nord_dark() -> Self {
+        Self {
+            name: "nord-dark".to_string(),
+            background: Color::Rgb(46, 52, 64),    // nord0
+            foreground: Color::Rgb(236, 239, 244), // nord6
+            heading: Color::Rgb(143, 188, 187),    // nord7 (Frost)
+            accent: Color::Rgb(136, 192, 208),     // nord8 (Frost)
+            selection: Color::Rgb(67, 76, 94),     // nord2
+            highlight: Color::Rgb(235, 203, 139),  // nord13 (Yellow)
+            status_bg: Color::Rgb(59, 66, 82),     // nord1
+            status_fg: Color::Rgb(236, 239, 244),  // nord6
+            border: Color::Rgb(129, 161, 193),     // nord9
+        }
+    }
+
+    pub fn nord_light() -> Self {
+        Self {
+            name: "nord-light".to_string(),
+            background: Color::Rgb(236, 239, 244), // nord6
+            foreground: Color::Rgb(46, 52, 64),    // nord0
+            heading: Color::Rgb(94, 129, 172),     // nord10
+            accent: Color::Rgb(191, 97, 106),      // nord11 (Aurora red)
+            selection: Color::Rgb(229, 233, 240),  // nord5
+            highlight: Color::Rgb(208, 135, 112),  // nord12 (Orange)
+            status_bg: Color::Rgb(216, 222, 233),  // nord4
+            status_fg: Color::Rgb(46, 52, 64),     // nord0
+            border: Color::Rgb(143, 188, 187),     // nord7
+        }
+    }
+
     pub fn dracula() -> Self {
         Self {
             name: "dracula".to_string(),
@@ -75,12 +105,23 @@ impl Theme {
         }
     }
 
+    pub fn system_default() -> Self {
+        match dark_light::detect() {
+            dark_light::Mode::Light => Self::nord_light(),
+            _ => Self::nord_dark(),
+        }
+    }
+
     pub fn get_by_name(name: &str) -> Self {
         match name.to_lowercase().as_str() {
+            "nord" | "nord-dark" | "nord_dark" => Self::nord_dark(),
+            "nord-light" | "nord_light" => Self::nord_light(),
+            "dracula" => Self::dracula(),
             "monokai" => Self::monokai(),
             "github-dark" | "github_dark" => Self::github_dark(),
             "github-light" | "github_light" => Self::github_light(),
-            _ => Self::dracula(),
+            "system" | "default" | "auto" => Self::system_default(),
+            _ => Self::system_default(),
         }
     }
 

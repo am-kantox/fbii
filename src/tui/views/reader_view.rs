@@ -15,6 +15,7 @@ pub struct ReaderView {
     pub show_help: bool,
     pub toc_state: ListState,
     pub bookmark_state: ListState,
+    pub bookmark_items: Vec<crate::db::DbBookmark>,
 }
 
 impl ReaderView {
@@ -31,6 +32,7 @@ impl ReaderView {
             show_help: false,
             toc_state,
             bookmark_state,
+            bookmark_items: Vec::new(),
         }
     }
 
@@ -111,10 +113,41 @@ impl ReaderView {
             self.render_toc_modal(f, area, book, theme);
         }
 
+        // Render Bookmarks modal if active
+        if self.show_bookmarks {
+            self.render_bookmarks_modal(f, area, theme);
+        }
+
         // Render Help modal if active
         if self.show_help {
             self.render_help_modal(f, area, theme);
         }
+    }
+
+    pub fn render_bookmarks_modal(&mut self, f: &mut Frame, area: Rect, theme: &Theme) {
+        let modal_area = centered_rect(60, 60, area);
+        f.render_widget(Clear, modal_area);
+
+        let items: Vec<ListItem> = self
+            .bookmark_items
+            .iter()
+            .map(|b| {
+                ListItem::new(format!("Offset {}: {}", b.char_offset, b.label))
+                    .style(theme.base_style())
+            })
+            .collect();
+
+        let list = List::new(items)
+            .block(Block::default().borders(Borders::ALL).title(" Bookmarks "))
+            .highlight_style(
+                Style::default()
+                    .bg(theme.selection)
+                    .fg(theme.foreground)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .highlight_symbol("> ");
+
+        f.render_stateful_widget(list, modal_area, &mut self.bookmark_state);
     }
 
     fn render_toc_modal(&mut self, f: &mut Frame, area: Rect, book: &Book, theme: &Theme) {

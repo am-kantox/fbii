@@ -27,6 +27,7 @@ sha1 = "0.10"
 thiserror = "2.0"
 anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
+dark-light = "1.0"
 
 [dev-dependencies]
 tempfile = "3"

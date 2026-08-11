@@ -8,6 +8,15 @@ use fbii::tui::{App, AppMode};
 
 #[test]
 fn test_theme_catalog() {
+    let nord_dark = Theme::get_by_name("nord-dark");
+    assert_eq!(nord_dark.name, "nord-dark");
+
+    let nord_light = Theme::get_by_name("nord-light");
+    assert_eq!(nord_light.name, "nord-light");
+
+    let system_theme = Theme::get_by_name("auto");
+    assert!(system_theme.name == "nord-dark" || system_theme.name == "nord-light");
+
     let dracula = Theme::get_by_name("dracula");
     assert_eq!(dracula.name, "dracula");
     assert!(dracula.base_style().bg.is_some());
@@ -22,7 +31,7 @@ fn test_theme_catalog() {
     assert_eq!(gh_light.name, "github-light");
 
     let fallback = Theme::get_by_name("unknown-theme");
-    assert_eq!(fallback.name, "dracula");
+    assert!(fallback.name == "nord-dark" || fallback.name == "nord-light");
 }
 
 #[test]

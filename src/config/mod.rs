@@ -20,7 +20,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            theme: "dracula".to_string(),
+            theme: "nord".to_string(),
             typography: TypographyConfig::default(),
             display: DisplayConfig::default(),
             db_path: None,

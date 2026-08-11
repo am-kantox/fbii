@@ -5,7 +5,7 @@ use fbii::utils::AppError;
 #[test]
 fn test_default_config_loading() {
     let config = Config::default();
-    assert_eq!(config.theme, "dracula");
+    assert_eq!(config.theme, "nord");
     assert_eq!(config.typography.measure, 80);
     assert_eq!(config.typography.paragraph_indent, 2);
     assert!(!config.display.simplified_mode);

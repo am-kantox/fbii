@@ -18,10 +18,12 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use std::io::stdout;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AppMode {
     Library,
     Reader,
+    SearchInput,
+    CommandInput,
 }
 
 pub struct App {
@@ -35,6 +37,8 @@ pub struct App {
     pub search_index: Option<BookSearchIndex>,
     pub search_matches: Vec<SearchMatch>,
     pub current_match_idx: usize,
+    pub input_buffer: String,
+    pub bookmarks: Vec<crate::db::DbBookmark>,
     pub key_dispatcher: KeymapDispatcher,
     pub library_view: LibraryView,
     pub reader_view: ReaderView,
@@ -58,6 +62,8 @@ impl App {
             key_dispatcher: KeymapDispatcher::new(),
             library_view: LibraryView::new(),
             reader_view: ReaderView::new(),
+            input_buffer: String::new(),
+            bookmarks: Vec::new(),
             is_running: true,
         }
     }
@@ -85,7 +91,9 @@ impl App {
     pub fn handle_action(&mut self, action: KeyAction) {
         match action {
             KeyAction::Quit => {
-                if self.reader_view.show_toc {
+                if self.reader_view.show_bookmarks {
+                    self.reader_view.show_bookmarks = false;
+                } else if self.reader_view.show_toc {
                     self.reader_view.show_toc = false;
                 } else if self.reader_view.show_help {
                     self.reader_view.show_help = false;
@@ -93,6 +101,74 @@ impl App {
                     self.mode = AppMode::Library;
                 } else {
                     self.is_running = false;
+                }
+            }
+            KeyAction::Search => {
+                if self.mode == AppMode::Reader {
+                    self.input_buffer.clear();
+                    self.mode = AppMode::SearchInput;
+                }
+            }
+            KeyAction::Command => {
+                self.input_buffer.clear();
+                self.mode = AppMode::CommandInput;
+            }
+            KeyAction::AddBookmark => {
+                if self.mode == AppMode::Reader {
+                    if let (Some(book), Some(layout)) = (&self.active_book, &self.active_layout) {
+                        let offset = layout
+                            .lines
+                            .get(self.reader_view.scroll_offset)
+                            .map(|l| l.char_start)
+                            .unwrap_or(0);
+                        let label = format!("Line {}", self.reader_view.scroll_offset + 1);
+                        let book_id = book.id.clone();
+                        let db = self.db.clone();
+                        tokio::spawn(async move {
+                            let _ = db.add_bookmark(&book_id, offset, &label).await;
+                        });
+                    }
+                }
+            }
+            KeyAction::ListBookmarks => {
+                if self.mode == AppMode::Reader {
+                    if let Some(book) = &self.active_book {
+                        let book_id = book.id.clone();
+                        let db = self.db.clone();
+                        let (tx, rx) = tokio::sync::oneshot::channel();
+                        tokio::spawn(async move {
+                            if let Ok(bms) = db.list_bookmarks(&book_id).await {
+                                let _ = tx.send(bms);
+                            }
+                        });
+                        if let Ok(bms) = rx.blocking_recv() {
+                            self.reader_view.bookmark_items = bms;
+                            self.reader_view.show_bookmarks = !self.reader_view.show_bookmarks;
+                        }
+                    }
+                }
+            }
+            KeyAction::NextMatch => {
+                if self.mode == AppMode::Reader && !self.search_matches.is_empty() {
+                    self.current_match_idx =
+                        (self.current_match_idx + 1) % self.search_matches.len();
+                    let m = &self.search_matches[self.current_match_idx];
+                    if let Some(layout) = &self.active_layout {
+                        self.reader_view.scroll_offset = layout.line_at_char_offset(m.char_start);
+                    }
+                }
+            }
+            KeyAction::PrevMatch => {
+                if self.mode == AppMode::Reader && !self.search_matches.is_empty() {
+                    if self.current_match_idx == 0 {
+                        self.current_match_idx = self.search_matches.len() - 1;
+                    } else {
+                        self.current_match_idx -= 1;
+                    }
+                    let m = &self.search_matches[self.current_match_idx];
+                    if let Some(layout) = &self.active_layout {
+                        self.reader_view.scroll_offset = layout.line_at_char_offset(m.char_start);
+                    }
                 }
             }
             KeyAction::Select => {
@@ -115,11 +191,25 @@ impl App {
                         }
                     }
                     self.reader_view.show_toc = false;
+                } else if self.mode == AppMode::Reader && self.reader_view.show_bookmarks {
+                    let idx = self.reader_view.bookmark_state.selected().unwrap_or(0);
+                    if let Some(bm) = self.reader_view.bookmark_items.get(idx) {
+                        if let Some(layout) = &self.active_layout {
+                            self.reader_view.scroll_offset =
+                                layout.line_at_char_offset(bm.char_offset as usize);
+                        }
+                    }
+                    self.reader_view.show_bookmarks = false;
                 }
             }
             KeyAction::ScrollDown => {
                 if self.mode == AppMode::Reader {
-                    if self.reader_view.show_toc {
+                    if self.reader_view.show_bookmarks {
+                        let idx = self.reader_view.bookmark_state.selected().unwrap_or(0);
+                        if idx + 1 < self.reader_view.bookmark_items.len() {
+                            self.reader_view.bookmark_state.select(Some(idx + 1));
+                        }
+                    } else if self.reader_view.show_toc {
                         if let Some(book) = &self.active_book {
                             let idx = self.reader_view.toc_state.selected().unwrap_or(0);
                             if idx + 1 < book.toc.len() {
@@ -140,7 +230,12 @@ impl App {
             }
             KeyAction::ScrollUp => {
                 if self.mode == AppMode::Reader {
-                    if self.reader_view.show_toc {
+                    if self.reader_view.show_bookmarks {
+                        let idx = self.reader_view.bookmark_state.selected().unwrap_or(0);
+                        self.reader_view
+                            .bookmark_state
+                            .select(Some(idx.saturating_sub(1)));
+                    } else if self.reader_view.show_toc {
                         let idx = self.reader_view.toc_state.selected().unwrap_or(0);
                         self.reader_view
                             .toc_state
@@ -242,14 +337,103 @@ impl App {
                             self.reader_view.render(f, area, book, layout, &self.theme);
                         }
                     }
+                    AppMode::SearchInput => {
+                        if let (Some(book), Some(layout)) = (&self.active_book, &self.active_layout)
+                        {
+                            self.reader_view.render(f, area, book, layout, &self.theme);
+                            let chunks = ratatui::layout::Layout::default()
+                                .direction(ratatui::layout::Direction::Vertical)
+                                .constraints([
+                                    ratatui::layout::Constraint::Min(1),
+                                    ratatui::layout::Constraint::Length(1),
+                                ])
+                                .split(area);
+                            let prompt =
+                                ratatui::widgets::Paragraph::new(format!("/{}", self.input_buffer))
+                                    .style(self.theme.status_style());
+                            f.render_widget(prompt, chunks[1]);
+                        }
+                    }
+                    AppMode::CommandInput => {
+                        let chunks = ratatui::layout::Layout::default()
+                            .direction(ratatui::layout::Direction::Vertical)
+                            .constraints([
+                                ratatui::layout::Constraint::Min(1),
+                                ratatui::layout::Constraint::Length(1),
+                            ])
+                            .split(area);
+                        let prompt =
+                            ratatui::widgets::Paragraph::new(format!(":{}", self.input_buffer))
+                                .style(self.theme.status_style());
+                        f.render_widget(prompt, chunks[1]);
+                    }
                 }
             })?;
 
             tokio::select! {
                 Some(Ok(event)) = event_stream.next() => {
                     if let Event::Key(key_event) = event {
-                        if let Some(action) = self.key_dispatcher.handle_event(key_event, &self.config.keymap) {
-                            self.handle_action(action);
+                        match self.mode {
+                            AppMode::SearchInput => {
+                                match key_event.code {
+                                    crossterm::event::KeyCode::Enter => {
+                                        let query = self.input_buffer.clone();
+                                        self.mode = AppMode::Reader;
+                                        if let Some(index) = &self.search_index {
+                                            self.search_matches = index.search(&query);
+                                            self.current_match_idx = 0;
+                                            if let Some(m) = self.search_matches.first() {
+                                                if let Some(layout) = &self.active_layout {
+                                                    self.reader_view.scroll_offset = layout.line_at_char_offset(m.char_start);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    crossterm::event::KeyCode::Esc => {
+                                        self.input_buffer.clear();
+                                        self.mode = AppMode::Reader;
+                                    }
+                                    crossterm::event::KeyCode::Backspace => {
+                                        self.input_buffer.pop();
+                                    }
+                                    crossterm::event::KeyCode::Char(c) => {
+                                        self.input_buffer.push(c);
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            AppMode::CommandInput => {
+                                match key_event.code {
+                                    crossterm::event::KeyCode::Enter => {
+                                        let cmd = self.input_buffer.trim().to_string();
+                                        self.input_buffer.clear();
+                                        self.mode = AppMode::Reader;
+                                        if cmd == "q" || cmd == "quit" {
+                                            self.is_running = false;
+                                        } else if cmd == "toc" {
+                                            self.reader_view.show_toc = true;
+                                        } else if cmd == "help" {
+                                            self.reader_view.show_help = true;
+                                        }
+                                    }
+                                    crossterm::event::KeyCode::Esc => {
+                                        self.input_buffer.clear();
+                                        self.mode = AppMode::Reader;
+                                    }
+                                    crossterm::event::KeyCode::Backspace => {
+                                        self.input_buffer.pop();
+                                    }
+                                    crossterm::event::KeyCode::Char(c) => {
+                                        self.input_buffer.push(c);
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            _ => {
+                                if let Some(action) = self.key_dispatcher.handle_event(key_event, &self.config.keymap) {
+                                    self.handle_action(action);
+                                }
+                            }
                         }
                     }
                 }
