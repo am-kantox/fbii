@@ -4,6 +4,8 @@ pub mod db;
 pub mod formats;
 pub mod renderer;
 pub mod search;
+pub mod themes;
+pub mod tui;
 pub mod utils;
 
 pub use cli::CliArgs;
@@ -12,4 +14,6 @@ pub use db::LibraryDb;
 pub use formats::{Block, Book, BookFormat, Inline, Metadata};
 pub use renderer::BookLayout;
 pub use search::BookSearchIndex;
+pub use themes::Theme;
+pub use tui::{App, AppMode};
 pub use utils::{AppError, Result};

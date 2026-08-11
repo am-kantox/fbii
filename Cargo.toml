@@ -8,6 +8,7 @@ license = "MIT"
 
 [dependencies]
 tokio = { version = "1.38", features = ["full"] }
+futures = "0.3"
 ratatui = "0.29"
 crossterm = { version = "0.28", features = ["event-stream"] }
 sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "chrono"] }
