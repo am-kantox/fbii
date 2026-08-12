@@ -7,7 +7,7 @@ description = "A terminal e-book reader for FB2, FB2-in-ZIP and EPUB with vim-li
 license = "MIT"
 
 [dependencies]
-tokio = { version = "1.38", features = ["full"] }
+tokio = { version = "1.38", features = ["rt-multi-thread", "macros", "fs", "time", "sync", "process", "io-util", "io-std"] }
 futures = "0.3"
 ratatui = "0.29"
 crossterm = { version = "0.28", features = ["event-stream"] }
@@ -22,6 +22,7 @@ encoding_rs = "0.8"
 unicode-width = "0.2"
 unicode-normalization = "0.1"
 ratatui-image = "3.0"
+image = "0.25"
 base64 = "0.22"
 sha1 = "0.10"
 thiserror = "2.0"
@@ -29,7 +30,12 @@ anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 dark-light = "1.0"
 arboard = "3.4"
-reqwest = { version = "0.12", features = ["blocking"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
 
 [dev-dependencies]
 tempfile = "3"
+
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1

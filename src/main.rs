@@ -31,11 +31,23 @@ async fn main() -> Result<()> {
         });
 
     let db = LibraryDb::new_at_path(&db_path).await?;
-    let mut app = App::new(config, db);
+
+    if let Some(scan_dir) = &args.scan_dir {
+        let summary = fbii::library::scan_and_import(&db, scan_dir).await;
+        println!(
+            "Scanned '{}': {} imported, {} already known, {} failed",
+            scan_dir.display(),
+            summary.imported,
+            summary.skipped,
+            summary.failed
+        );
+    }
+
+    let mut app = App::new(config, db, config_path);
 
     if let Some(file_path) = args.file_path {
         let uri_str = file_path.to_string_lossy();
-        match fbii::formats::parse_book_uri(&uri_str) {
+        match fbii::formats::parse_book_uri_async(&uri_str).await {
             Ok(book) => {
                 app.db.upsert_book(&book, 0, 0.0).await?;
                 app.load_book(book).await;

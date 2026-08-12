@@ -89,7 +89,11 @@ fn test_keymap_dispatcher() {
 async fn test_app_action_handling() {
     let config = Config::default();
     let db = LibraryDb::new_in_memory().await.unwrap();
-    let mut app = App::new(config, db);
+    let mut app = App::new(
+        config,
+        db,
+        std::path::PathBuf::from("/tmp/fbii_test_config.toml"),
+    );
 
     assert_eq!(app.mode, AppMode::Library);
 

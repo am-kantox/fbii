@@ -66,7 +66,7 @@ pub fn parse_fb2_bytes(bytes: &[u8], file_path: &str) -> Result<Book> {
         parse_body(body_node, &mut content, &mut toc);
     }
 
-    let id = md5_hash(bytes);
+    let id = crate::formats::book_id_for_path(Path::new(file_path));
 
     let mut book = Book::new(id, file_path, metadata);
     book.content = content;
@@ -403,10 +403,4 @@ fn base64_decode(input: &str) -> std::result::Result<Vec<u8>, ()> {
         .decode(input)
         .or_else(|_| base64::engine::general_purpose::STANDARD_NO_PAD.decode(input))
         .map_err(|_| ())
-}
-
-fn md5_hash(bytes: &[u8]) -> String {
-    use sha1::Digest;
-    let hash = sha1::Sha1::digest(bytes);
-    format!("{:x}", hash)
 }

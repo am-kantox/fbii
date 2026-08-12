@@ -23,6 +23,10 @@ pub struct WrappedLine {
     pub char_start: usize,
     pub char_end: usize,
     pub is_empty_line: bool,
+    /// Set when this line renders a standalone `Block::Image`, holding the
+    /// resource key into `Book::resources` so the reader can offer to
+    /// display the actual image via the `ViewImage` action.
+    pub image_key: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -46,6 +50,7 @@ impl BookLayout {
         };
 
         let mut current_char_offset = 0;
+        let line_spacing = config.line_spacing as usize;
 
         for (block_idx, block) in book.content.iter().enumerate() {
             let block_lines = layout_block(
@@ -57,6 +62,7 @@ impl BookLayout {
                 config,
                 &mut current_char_offset,
             );
+            let block_lines = interleave_line_spacing(block_lines, line_spacing);
 
             lines.extend(block_lines);
 
@@ -69,6 +75,7 @@ impl BookLayout {
                         char_start: current_char_offset,
                         char_end: current_char_offset,
                         is_empty_line: true,
+                        image_key: None,
                     });
                 }
             }
@@ -77,15 +84,16 @@ impl BookLayout {
         Self { lines }
     }
 
+    /// Map a character offset to a line index. When `char_offset` falls
+    /// exactly on a boundary shared by two adjacent lines (the common case
+    /// when anchoring on a line's `char_start`, e.g. paragraph-spacing
+    /// blank lines or the position-preserving layout rebuild), this
+    /// consistently resolves to the *later* of the two lines — i.e. the
+    /// last line whose `char_start` is at or before the offset — rather
+    /// than whichever line happens to be encountered first.
     pub fn line_at_char_offset(&self, char_offset: usize) -> usize {
         if self.lines.is_empty() {
             return 0;
-        }
-
-        for (i, line) in self.lines.iter().enumerate() {
-            if char_offset >= line.char_start && char_offset <= line.char_end {
-                return i;
-            }
         }
 
         let mut best_idx = 0;
@@ -97,6 +105,17 @@ impl BookLayout {
             }
         }
         best_idx
+    }
+
+    /// Reading-progress percentage for a given scroll position, accounting
+    /// for the visible viewport height. Shared by the reader status bar and
+    /// by `App::save_progress` so both agree on the same value.
+    pub fn progress_percent(&self, scroll_offset: usize, viewport_height: usize) -> f64 {
+        let total_lines = self.lines.len();
+        if total_lines == 0 {
+            return 0.0;
+        }
+        ((scroll_offset + viewport_height).min(total_lines) as f64 / total_lines as f64) * 100.0
     }
 }
 
@@ -208,6 +227,7 @@ fn layout_block(
                     char_start: start,
                     char_end: *char_offset,
                     is_empty_line: false,
+                    image_key: None,
                 });
             }
         }
@@ -242,6 +262,7 @@ fn layout_block(
                 char_start: start,
                 char_end: *char_offset,
                 is_empty_line: false,
+                image_key: Some(key.clone()),
             });
         }
         Block::Empty => {
@@ -251,6 +272,7 @@ fn layout_block(
                 char_start: *char_offset,
                 char_end: *char_offset,
                 is_empty_line: true,
+                image_key: None,
             });
         }
     }
@@ -400,6 +422,7 @@ fn wrap_spans_into_lines(
                     char_start: line_start_offset,
                     char_end: *char_offset,
                     is_empty_line: false,
+                    image_key: None,
                 });
                 current_line_spans = Vec::new();
                 current_width = 0;
@@ -423,6 +446,7 @@ fn wrap_spans_into_lines(
                     char_start: line_start_offset,
                     char_end: *char_offset,
                     is_empty_line: false,
+                    image_key: None,
                 });
 
                 current_line_spans = Vec::new();
@@ -450,8 +474,40 @@ fn wrap_spans_into_lines(
             char_start: line_start_offset,
             char_end: *char_offset,
             is_empty_line: false,
+            image_key: None,
         });
     }
 
     lines
+}
+
+/// Insert `spacing - 1` blank lines between each pair of consecutive wrapped
+/// lines within a single block, implementing `TypographyConfig::line_spacing`.
+/// A `spacing` of 0 or 1 is a no-op, matching the default (single-spaced)
+/// behavior.
+fn interleave_line_spacing(block_lines: Vec<WrappedLine>, spacing: usize) -> Vec<WrappedLine> {
+    if spacing <= 1 || block_lines.len() <= 1 {
+        return block_lines;
+    }
+
+    let last_idx = block_lines.len() - 1;
+    let mut result = Vec::with_capacity(block_lines.len() * spacing);
+    for (i, line) in block_lines.into_iter().enumerate() {
+        let block_index = line.block_index;
+        let char_pos = line.char_end;
+        result.push(line);
+        if i != last_idx {
+            for _ in 0..spacing.saturating_sub(1) {
+                result.push(WrappedLine {
+                    spans: Vec::new(),
+                    block_index,
+                    char_start: char_pos,
+                    char_end: char_pos,
+                    is_empty_line: true,
+                    image_key: None,
+                });
+            }
+        }
+    }
+    result
 }

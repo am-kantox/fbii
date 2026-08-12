@@ -3,7 +3,7 @@ pub mod models;
 pub use models::{DbBook, DbBookmark, DbReadingSession};
 
 use crate::formats::model::Book;
-use crate::utils::{AppError, Result};
+use crate::utils::{sha1_hex, AppError, Result};
 use chrono::Utc;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 use std::path::Path;
@@ -201,7 +201,7 @@ impl LibraryDb {
         char_offset: usize,
         label: &str,
     ) -> Result<DbBookmark> {
-        let id = md5_hash(format!("{}:{}:{}", book_id, char_offset, label).as_bytes());
+        let id = sha1_hex(format!("{}:{}:{}", book_id, char_offset, label).as_bytes());
         let now = Utc::now();
 
         sqlx::query(
@@ -256,7 +256,7 @@ impl LibraryDb {
     }
 
     pub async fn start_reading_session(&self, book_id: &str) -> Result<String> {
-        let id = md5_hash(
+        let id = sha1_hex(
             format!(
                 "{}:{}",
                 book_id,
@@ -289,10 +289,4 @@ impl LibraryDb {
 
         Ok(())
     }
-}
-
-fn md5_hash(bytes: &[u8]) -> String {
-    use sha1::Digest;
-    let hash = sha1::Sha1::digest(bytes);
-    format!("{:x}", hash)
 }

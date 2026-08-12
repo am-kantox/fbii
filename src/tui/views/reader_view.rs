@@ -6,6 +6,8 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph};
 use ratatui::Frame;
+use ratatui_image::protocol::StatefulProtocol;
+use ratatui_image::StatefulImage;
 
 #[derive(Default)]
 pub struct ReaderView {
@@ -19,6 +21,18 @@ pub struct ReaderView {
     pub bookmark_state: ListState,
     pub theme_state: ListState,
     pub bookmark_items: Vec<crate::db::DbBookmark>,
+    /// Height (in terminal rows) of the last-rendered text viewport. Used to
+    /// make page/half-page scrolling match what is actually on screen, and
+    /// to compute reading progress consistently with `App::save_progress`.
+    pub last_viewport_height: usize,
+    /// Whether the inline image viewer modal is currently shown.
+    pub show_image: bool,
+    /// Resource key of the image currently displayed in the image modal.
+    pub current_image_key: Option<String>,
+    /// Decoded/resized image render state for the currently viewed image.
+    /// Not `Clone`/`Debug`, so it is kept out of any derived traits on
+    /// `ReaderView`.
+    pub image_state: Option<StatefulProtocol>,
 }
 
 impl ReaderView {
@@ -41,6 +55,10 @@ impl ReaderView {
             bookmark_state,
             theme_state,
             bookmark_items: Vec::new(),
+            last_viewport_height: 20,
+            show_image: false,
+            current_image_key: None,
+            image_state: None,
         }
     }
 
@@ -64,6 +82,7 @@ impl ReaderView {
         f.render_widget(Block::default().style(theme.base_style()), chunks[0]);
 
         let viewport_height = chunks[0].height as usize;
+        self.last_viewport_height = viewport_height;
         let visible_lines = layout
             .lines
             .iter()
@@ -127,12 +146,7 @@ impl ReaderView {
 
         // Calculate progress % and progress bar
         let total_lines = layout.lines.len();
-        let progress_percent = if total_lines == 0 {
-            0.0
-        } else {
-            ((self.scroll_offset + viewport_height).min(total_lines) as f64 / total_lines as f64)
-                * 100.0
-        };
+        let progress_percent = layout.progress_percent(self.scroll_offset, viewport_height);
 
         let bar_width = 12;
         let filled_len = ((progress_percent / 100.0) * bar_width as f64).round() as usize;
@@ -184,6 +198,38 @@ impl ReaderView {
         if self.show_help {
             self.render_help_modal(f, area, theme);
         }
+
+        // Render the image viewer modal if active
+        if self.show_image {
+            self.render_image_modal(f, area, theme);
+        }
+    }
+
+    /// Render the currently-loaded image (if any) in a centered modal using
+    /// whatever terminal graphics protocol was detected/configured. Falls
+    /// back to a placeholder message when no image data is available.
+    fn render_image_modal(&mut self, f: &mut Frame, area: Rect, theme: &Theme) {
+        let modal_area = centered_rect(80, 80, area);
+        f.render_widget(Clear, modal_area);
+
+        let title = self
+            .current_image_key
+            .as_deref()
+            .unwrap_or("Image")
+            .to_string();
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title(format!(" {} (press q/Esc to close) ", title));
+        let inner = block.inner(modal_area);
+        f.render_widget(block, modal_area);
+
+        if let Some(protocol) = self.image_state.as_mut() {
+            let image_widget = StatefulImage::new(None);
+            f.render_stateful_widget(image_widget, inner, protocol);
+        } else {
+            let paragraph = Paragraph::new("Image data unavailable.").style(theme.base_style());
+            f.render_widget(paragraph, inner);
+        }
     }
 
     pub fn render_bookmarks_modal(&mut self, f: &mut Frame, area: Rect, theme: &Theme) {
@@ -200,7 +246,11 @@ impl ReaderView {
             .collect();
 
         let list = List::new(items)
-            .block(Block::default().borders(Borders::ALL).title(" Bookmarks "))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Bookmarks (d: delete) "),
+            )
             .highlight_style(
                 Style::default()
                     .bg(theme.selection)
@@ -246,18 +296,26 @@ impl ReaderView {
         let help_text = r#" Keybindings:
   j / Down         Scroll down 1 line
   k / Up           Scroll up 1 line
+  Ctrl+F / Ctrl+B  Scroll 1 page down / up
   Ctrl+D / Ctrl+U  Scroll 1/2 page down / up
   gg / G           Go to top / bottom
   /                Search query (Up/Down for search history)
   n / N            Next / Previous match
   :                Command mode (Up/Down for command history)
   t                Table of Contents
-  b / B            Add / List Bookmarks
+  b / B            Add / List Bookmarks (d to delete a bookmark)
+  v                View image at cursor line
   W                Toggle Widescreen / Centered Column
   J                Toggle Text Justification
   S                Toggle Simplified Mode
   C                Toggle CSS Styling
   q / Esc          Back / Quit
+
+ Library view:
+  d                Delete selected book
+  r                Cycle sort order (Recent/Title/Author)
+  /                Filter library by title/author
+  :scan <dir>      Recursively import books from a directory
 "#;
 
         let paragraph = Paragraph::new(help_text).style(theme.base_style()).block(

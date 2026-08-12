@@ -30,6 +30,9 @@ pub enum KeyAction {
     ToggleJustify,
     ToggleWidescreen,
     Select,
+    Delete,
+    CycleSort,
+    ViewImage,
 }
 
 impl std::fmt::Display for KeyAction {
@@ -60,6 +63,9 @@ impl std::fmt::Display for KeyAction {
             KeyAction::ToggleJustify => "toggle_justify",
             KeyAction::ToggleWidescreen => "toggle_widescreen",
             KeyAction::Select => "select",
+            KeyAction::Delete => "delete",
+            KeyAction::CycleSort => "cycle_sort",
+            KeyAction::ViewImage => "view_image",
         };
         write!(f, "{}", name)
     }
@@ -121,6 +127,9 @@ impl Default for KeyMap {
         bindings.insert("C".to_string(), KeyAction::ToggleCss);
         bindings.insert("J".to_string(), KeyAction::ToggleJustify);
         bindings.insert("W".to_string(), KeyAction::ToggleWidescreen);
+        bindings.insert("d".to_string(), KeyAction::Delete);
+        bindings.insert("r".to_string(), KeyAction::CycleSort);
+        bindings.insert("v".to_string(), KeyAction::ViewImage);
         Self { bindings }
     }
 }

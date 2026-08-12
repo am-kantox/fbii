@@ -127,11 +127,7 @@ pub fn parse_epub(path: &Path) -> Result<Book> {
         }
     }
 
-    let file_stem = path
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| "epub".to_string());
-    let id = md5_hash(file_stem.as_bytes());
+    let id = crate::formats::book_id_for_path(path);
 
     let mut book = Book::new(id, path.to_string_lossy().to_string(), metadata);
     book.content = content;
@@ -452,10 +448,4 @@ fn parse_html_inlines(node: Node, out: &mut Vec<Inline>) {
             }
         }
     }
-}
-
-fn md5_hash(bytes: &[u8]) -> String {
-    use sha1::Digest;
-    let hash = sha1::Sha1::digest(bytes);
-    format!("{:x}", hash)
 }

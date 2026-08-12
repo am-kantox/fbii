@@ -40,7 +40,11 @@ async fn test_full_lifecycle_open_file_and_db_persistence() {
 
     let db = LibraryDb::new_in_memory().await.unwrap();
     let config = Config::default();
-    let mut app = App::new(config, db);
+    let mut app = App::new(
+        config,
+        db,
+        std::path::PathBuf::from("/tmp/fbii_test_config.toml"),
+    );
 
     let book = parse_book_file(&fb2_path).unwrap();
     app.db.upsert_book(&book, 0, 0.0).await.unwrap();

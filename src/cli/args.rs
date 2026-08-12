@@ -25,4 +25,9 @@ pub struct CliArgs {
     /// Custom path to TOML config file
     #[arg(short, long, value_name = "PATH")]
     pub config: Option<PathBuf>,
+
+    /// Recursively scan a directory for e-book files and import them into
+    /// the library before starting
+    #[arg(long, value_name = "DIR")]
+    pub scan_dir: Option<PathBuf>,
 }

@@ -72,7 +72,11 @@ fn test_url_resolution_helper() {
 async fn test_opds_app_catalogs_and_simplified_toggle() {
     let config = Config::default();
     let db = LibraryDb::new_in_memory().await.unwrap();
-    let mut app = App::new(config, db);
+    let mut app = App::new(
+        config,
+        db,
+        std::path::PathBuf::from("/tmp/fbii_test_config.toml"),
+    );
 
     // Verify default OPDS catalog for Gutenberg exists
     assert!(app.opds_catalogs.contains_key("gutenberg"));

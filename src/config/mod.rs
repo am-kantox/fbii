@@ -6,6 +6,7 @@ pub use keymap::{normalize_key, KeyAction, KeyMap};
 
 use crate::utils::{AppError, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -15,6 +16,19 @@ pub struct Config {
     pub display: DisplayConfig,
     pub db_path: Option<String>,
     pub keymap: KeyMap,
+    /// User-defined OPDS catalogs (name -> feed URL), persisted across
+    /// restarts. Seeded with a default Project Gutenberg entry.
+    #[serde(default = "default_opds_catalogs")]
+    pub opds_catalogs: HashMap<String, String>,
+}
+
+fn default_opds_catalogs() -> HashMap<String, String> {
+    let mut catalogs = HashMap::new();
+    catalogs.insert(
+        "gutenberg".to_string(),
+        "https://www.gutenberg.org/ebooks/search.opds/".to_string(),
+    );
+    catalogs
 }
 
 impl Default for Config {
@@ -25,6 +39,7 @@ impl Default for Config {
             display: DisplayConfig::default(),
             db_path: None,
             keymap: KeyMap::default(),
+            opds_catalogs: default_opds_catalogs(),
         }
     }
 }
