@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="images/logo-silver-500x500.png" alt="FBII logo" width="200">
+</p>
+
 # FBII (Rust Port)
 
 **`fbii`** is a high-performance terminal e-book reader for **FB2**, **FB2-in-ZIP**, and **EPUB (2.x / 3.x)** written in Rust with Vim-like navigation controls.
@@ -16,35 +20,69 @@
 - **OPDS Catalogs**: Browse and download books from OPDS feeds; custom catalogs are persisted to the config file.
 - **Themes**: Built-in color palettes (`dracula`, `monokai`, `github-dark`, `github-light`).
 
-## Quick Start
+## Installation
 
-### Build & Run
+### Option 1: Prebuilt binary (no Rust toolchain required)
+
+Every [tagged release](../../releases) publishes ready-to-run archives for
+Linux (x86_64), macOS (Intel and Apple Silicon), and Windows (x86_64), built
+by the [release workflow](.github/workflows/release.yml). To install:
+
+1. Open the [Releases page](../../releases) and download the archive that
+   matches your platform (e.g. `fbii-<version>-x86_64-unknown-linux-gnu.tar.gz`,
+   `fbii-<version>-aarch64-apple-darwin.tar.gz`, or
+   `fbii-<version>-x86_64-pc-windows-msvc.zip`).
+2. Extract it (this creates a directory named after the archive):
+   ```bash
+   tar xzf fbii-*.tar.gz && cd fbii-*/    # Linux / macOS
+   # or unzip fbii-*.zip on Windows, then open the extracted folder
+   ```
+3. Run the extracted binary directly, or move it onto your `PATH`:
+   ```bash
+   ./fbii --help
+   install -m 755 fbii ~/.local/bin/fbii   # optional: install onto PATH
+   ```
+
+No system dependencies are required: SQLite is statically compiled into the
+binary, and TLS uses `rustls` rather than a system OpenSSL library.
+
+### Option 2: Build from source (requires Rust)
+
+Requires a [Rust toolchain](https://rustup.rs) (stable channel).
 
 ```bash
-# Build debug binary
-cargo build
-
-# Open an e-book file
-cargo run -- /path/to/book.epub
-
-# Launch library view
-cargo run -- --library
-
-# Custom theme
-cargo run -- --theme monokai /path/to/book.fb2
-
-# Specify config file
-cargo run -- --config ~/.config/fbii/config.toml
-
-# Recursively import every book found in a directory, then start normally
-cargo run -- --scan-dir ~/Books
-```
-
-### Installation
-
-```bash
+git clone <this-repository-url>
+cd fbii
 cargo install --path .
 ```
+
+This installs the `fbii` binary into `~/.cargo/bin` (make sure that directory
+is on your `PATH`).
+
+## Usage
+
+### Quick Start
+
+```bash
+# Open an e-book file
+fbii /path/to/book.epub
+
+# Launch library view
+fbii --library
+
+# Custom theme
+fbii --theme monokai /path/to/book.fb2
+
+# Specify config file
+fbii --config ~/.config/fbii/config.toml
+
+# Recursively import every book found in a directory, then start normally
+fbii --scan-dir ~/Books
+```
+
+When running from a source checkout without installing, substitute
+`cargo run --` for `fbii` in the examples above (e.g.
+`cargo run -- --library`).
 
 ## Vim Navigation Keybindings
 
@@ -127,7 +165,8 @@ gutenberg = "https://www.gutenberg.org/ebooks/search.opds/"
 # "j" = "scroll_down", etc. — see the default bindings above.
 ```
 
-`image_protocol` controls how embedded images are rendered when pressing `v`:
-`auto` detects the terminal's capability (Kitty/iTerm2/Sixel, falling back to
-Unicode half-blocks); set an explicit value to override detection, or `none`
-to disable image rendering entirely.
+`image_protocol` controls how embedded images are rendered, both inline in
+the text and in the full-size `v` zoom view: `auto` detects the terminal's
+capability (Kitty/iTerm2/Sixel, falling back to Unicode half-blocks); set an
+explicit value to override detection, or `none` to disable image rendering
+entirely (falling back to a text placeholder).
