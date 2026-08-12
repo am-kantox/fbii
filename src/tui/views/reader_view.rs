@@ -216,7 +216,7 @@ impl ReaderView {
 
                         let is_active_match = search_matches
                             .get(current_match_idx)
-                            .map_or(false, |m| char_pos >= m.char_start && char_pos < m.char_end);
+                            .is_some_and(|m| char_pos >= m.char_start && char_pos < m.char_end);
 
                         let is_any_match = search_matches
                             .iter()
@@ -227,7 +227,7 @@ impl ReaderView {
                             let next_pos = span_start_char + j;
                             let next_active = search_matches
                                 .get(current_match_idx)
-                                .map_or(false, |m| next_pos >= m.char_start && next_pos < m.char_end);
+                                .is_some_and(|m| next_pos >= m.char_start && next_pos < m.char_end);
                             let next_any = search_matches
                                 .iter()
                                 .any(|m| next_pos >= m.char_start && next_pos < m.char_end);

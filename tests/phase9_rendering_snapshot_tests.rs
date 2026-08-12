@@ -111,7 +111,18 @@ fn test_reader_view_render_shows_title_author_and_help_hint() {
     let mut view = ReaderView::new();
 
     let text = render_to_text(80, 20, |f| {
-        view.render(f, f.area(), &book, &layout, &config, &theme, None, None, &[], 0);
+        view.render(
+            f,
+            f.area(),
+            &book,
+            &layout,
+            &config,
+            &theme,
+            None,
+            None,
+            &[],
+            0,
+        );
     });
 
     assert!(

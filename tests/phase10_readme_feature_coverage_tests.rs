@@ -187,10 +187,7 @@ fn test_epub_css_display_none_parsing_and_toggle() {
     zip.finish().unwrap();
 
     let book = parse_epub(&epub_path).unwrap();
-    let has_hidden_block = book
-        .content
-        .iter()
-        .any(|b| matches!(b, Block::Hidden(_)));
+    let has_hidden_block = book.content.iter().any(|b| matches!(b, Block::Hidden(_)));
     assert!(
         has_hidden_block,
         "EPUB parser should convert display:none elements to Block::Hidden"
@@ -285,4 +282,3 @@ fn test_i_r_j_w_hotkeys_and_search_highlighting() {
     let layout = BookLayout::build(&book, &TypographyConfig::default(), false);
     assert!(!layout.lines.is_empty());
 }
-
