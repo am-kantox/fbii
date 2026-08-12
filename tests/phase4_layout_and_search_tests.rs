@@ -96,3 +96,26 @@ fn test_nfkd_fold_search() {
     assert_eq!(cafe_results.len(), 1);
     assert_eq!(cafe_results[0].block_index, 1);
 }
+
+#[test]
+fn test_search_matches_map_correctly_to_layout_lines() {
+    let mut book = Book::new("b1", "/path/book.fb2", Metadata::default());
+    book.content = vec![
+        Block::Paragraph(vec![Inline::Text("First block header.".to_string())]),
+        Block::Paragraph(vec![Inline::Text(
+            "Second block with unique target word inside.".to_string(),
+        )]),
+        Block::Paragraph(vec![Inline::Text("Third block closing.".to_string())]),
+    ];
+
+    let config = TypographyConfig::default();
+    let layout = BookLayout::build(&book, &config, false);
+    let index = BookSearchIndex::build(&book);
+
+    let matches = index.search("target");
+    assert_eq!(matches.len(), 1);
+    assert_eq!(matches[0].block_index, 1);
+
+    let line_idx = layout.line_at_char_offset(matches[0].char_start);
+    assert!(line_idx > 0 && line_idx < layout.lines.len() - 1);
+}

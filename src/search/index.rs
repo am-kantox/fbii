@@ -13,16 +13,24 @@ pub struct SearchMatch {
 pub struct BookSearchIndex {
     pub blocks_text: Vec<String>,
     pub normalized_blocks: Vec<String>,
+    pub block_char_offsets: Vec<usize>,
 }
 
 impl BookSearchIndex {
     pub fn build(book: &Book) -> Self {
         let mut blocks_text = Vec::new();
         let mut normalized_blocks = Vec::new();
+        let mut block_char_offsets = Vec::new();
+
+        let mut cumulative_char_offset = 0;
 
         for block in &book.content {
             let plain = block.plain_text();
             let norm = fold_str(&plain);
+
+            block_char_offsets.push(cumulative_char_offset);
+            cumulative_char_offset += plain.chars().count();
+
             blocks_text.push(plain);
             normalized_blocks.push(norm);
         }
@@ -30,6 +38,7 @@ impl BookSearchIndex {
         Self {
             blocks_text,
             normalized_blocks,
+            block_char_offsets,
         }
     }
 
@@ -43,18 +52,21 @@ impl BookSearchIndex {
         let query_char_count = query.chars().count();
 
         for (block_idx, norm_text) in self.normalized_blocks.iter().enumerate() {
-            let mut start = 0;
-            while let Some(idx) = norm_text[start..].find(&folded_query) {
-                let match_byte_start = start + idx;
+            let block_base = self.block_char_offsets[block_idx];
+            let mut start_byte = 0;
+
+            while let Some(idx) = norm_text[start_byte..].find(&folded_query) {
+                let match_byte_start = start_byte + idx;
                 let match_byte_end = match_byte_start + folded_query.len();
 
-                let char_start = norm_text[..match_byte_start].chars().count();
+                let block_char_start = norm_text[..match_byte_start].chars().count();
+                let char_start = block_base + block_char_start;
                 let char_end = char_start + query_char_count;
 
                 let original = &self.blocks_text[block_idx];
                 let snippet: String = original
                     .chars()
-                    .skip(char_start.saturating_sub(10))
+                    .skip(block_char_start.saturating_sub(10))
                     .take(query_char_count + 20)
                     .collect();
 
@@ -65,7 +77,7 @@ impl BookSearchIndex {
                     snippet,
                 });
 
-                start = match_byte_end;
+                start_byte = match_byte_end;
             }
         }
 

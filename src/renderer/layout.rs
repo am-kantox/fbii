@@ -78,12 +78,25 @@ impl BookLayout {
     }
 
     pub fn line_at_char_offset(&self, char_offset: usize) -> usize {
+        if self.lines.is_empty() {
+            return 0;
+        }
+
         for (i, line) in self.lines.iter().enumerate() {
             if char_offset >= line.char_start && char_offset <= line.char_end {
                 return i;
             }
         }
-        self.lines.len().saturating_sub(1)
+
+        let mut best_idx = 0;
+        for (i, line) in self.lines.iter().enumerate() {
+            if line.char_start <= char_offset {
+                best_idx = i;
+            } else {
+                break;
+            }
+        }
+        best_idx
     }
 }
 
