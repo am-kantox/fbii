@@ -1,6 +1,12 @@
 use crate::config::TypographyConfig;
 use crate::formats::model::{Block, Book, Inline};
-use unicode_width::UnicodeWidthStr;
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+
+/// Number of terminal rows reserved in the scrollable layout for each
+/// inline image (the last row is the existing text caption; the rest are
+/// blank rows the reader overlays with the actual rendered image).
+pub const IMAGE_INLINE_ROWS: usize = 12;
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct StyledSpan {
@@ -36,6 +42,20 @@ pub struct BookLayout {
 
 impl BookLayout {
     pub fn build(book: &Book, config: &TypographyConfig, simplified_mode: bool) -> Self {
+        Self::build_with_css(book, config, simplified_mode, true)
+    }
+
+    /// Like [`BookLayout::build`], but also controls whether content marked
+    /// as CSS-hidden (`Block::Hidden`/`Inline::Hidden`, from an inline
+    /// `display: none` style) is skipped (`respect_css = true`, the default
+    /// and normal reading behavior) or rendered anyway (`respect_css =
+    /// false`, e.g. for inspecting content a publisher intended to hide).
+    pub fn build_with_css(
+        book: &Book,
+        config: &TypographyConfig,
+        simplified_mode: bool,
+        respect_css: bool,
+    ) -> Self {
         let mut lines = Vec::new();
         let measure = config.measure as usize;
         let indent = if simplified_mode {
@@ -59,6 +79,7 @@ impl BookLayout {
                 measure,
                 indent,
                 simplified_mode,
+                respect_css,
                 config,
                 &mut current_char_offset,
             );
@@ -96,15 +117,17 @@ impl BookLayout {
             return 0;
         }
 
-        let mut best_idx = 0;
-        for (i, line) in self.lines.iter().enumerate() {
-            if line.char_start <= char_offset {
-                best_idx = i;
-            } else {
-                break;
-            }
-        }
-        best_idx
+        // `char_start` is non-decreasing across `self.lines`, so the count
+        // of lines starting at or before `char_offset` can be found with a
+        // binary search (O(log n)) instead of a linear scan. `partition_point`
+        // returns the index of the first line whose `char_start` exceeds
+        // `char_offset` (or `len()` if none does); one less than that is the
+        // last matching line, matching the previous linear-scan semantics
+        // exactly (including the boundary-tie preference for the later line).
+        let first_after = self
+            .lines
+            .partition_point(|line| line.char_start <= char_offset);
+        first_after.saturating_sub(1).min(self.lines.len() - 1)
     }
 
     /// Reading-progress percentage for a given scroll position, accounting
@@ -119,20 +142,39 @@ impl BookLayout {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn layout_block(
     block: &Block,
     block_idx: usize,
     measure: usize,
     indent: usize,
     simplified_mode: bool,
+    respect_css: bool,
     config: &TypographyConfig,
     char_offset: &mut usize,
 ) -> Vec<WrappedLine> {
     let mut result = Vec::new();
 
     match block {
+        Block::Hidden(blocks) => {
+            if !respect_css {
+                for b in blocks {
+                    let inner_lines = layout_block(
+                        b,
+                        block_idx,
+                        measure,
+                        indent,
+                        simplified_mode,
+                        respect_css,
+                        config,
+                        char_offset,
+                    );
+                    result.extend(inner_lines);
+                }
+            }
+        }
         Block::Paragraph(inlines) => {
-            let spans = flatten_inlines(inlines, false, 0, false);
+            let spans = flatten_inlines(inlines, false, 0, false, respect_css);
             let block_lines = wrap_spans_into_lines(
                 spans,
                 measure,
@@ -145,7 +187,7 @@ fn layout_block(
             result.extend(block_lines);
         }
         Block::Heading { level, inlines } => {
-            let spans = flatten_inlines(inlines, true, *level, false);
+            let spans = flatten_inlines(inlines, true, *level, false, respect_css);
             let block_lines =
                 wrap_spans_into_lines(spans, measure, 0, block_idx, false, false, char_offset);
             result.extend(block_lines);
@@ -158,6 +200,7 @@ fn layout_block(
                     measure.saturating_sub(4),
                     0,
                     simplified_mode,
+                    respect_css,
                     config,
                     char_offset,
                 );
@@ -188,7 +231,7 @@ fn layout_block(
                     bold: true,
                     ..Default::default()
                 }];
-                item_spans.extend(flatten_inlines(&item.inlines, false, 0, false));
+                item_spans.extend(flatten_inlines(&item.inlines, false, 0, false, respect_css));
                 let item_lines = wrap_spans_into_lines(
                     item_spans,
                     measure,
@@ -234,7 +277,7 @@ fn layout_block(
         Block::Poem { stanzas } => {
             for stanza in stanzas {
                 for line_inlines in &stanza.lines {
-                    let spans = flatten_inlines(line_inlines, false, 0, false);
+                    let spans = flatten_inlines(line_inlines, false, 0, false, respect_css);
                     let line_wrapped = wrap_spans_into_lines(
                         spans,
                         measure,
@@ -249,6 +292,27 @@ fn layout_block(
             }
         }
         Block::Image { key, alt } => {
+            // In normal (non-simplified) mode, reserve extra blank rows
+            // before the caption line so the reader can render the actual
+            // image inline, occupying real space in the scrollable flow,
+            // instead of only a one-line text placeholder. All reserved
+            // rows (blanks and the caption) share the same `image_key` so
+            // the reader can detect the full run. In simplified mode, keep
+            // the original compact single-line behavior.
+            if !simplified_mode {
+                let blank_char_pos = *char_offset;
+                for _ in 0..IMAGE_INLINE_ROWS.saturating_sub(1) {
+                    result.push(WrappedLine {
+                        spans: Vec::new(),
+                        block_index: block_idx,
+                        char_start: blank_char_pos,
+                        char_end: blank_char_pos,
+                        is_empty_line: true,
+                        image_key: Some(key.clone()),
+                    });
+                }
+            }
+
             let label = alt.clone().unwrap_or_else(|| format!("[Image: {}]", key));
             let start = *char_offset;
             *char_offset += label.chars().count();
@@ -285,11 +349,23 @@ fn flatten_inlines(
     is_heading: bool,
     heading_level: u8,
     is_quote: bool,
+    respect_css: bool,
 ) -> Vec<StyledSpan> {
     let mut spans = Vec::new();
 
     for inline in inlines {
         match inline {
+            Inline::Hidden(inner) => {
+                if !respect_css {
+                    spans.extend(flatten_inlines(
+                        inner,
+                        is_heading,
+                        heading_level,
+                        is_quote,
+                        respect_css,
+                    ));
+                }
+            }
             Inline::Text(t) => {
                 spans.push(StyledSpan {
                     text: t.clone(),
@@ -300,28 +376,32 @@ fn flatten_inlines(
                 });
             }
             Inline::Bold(inner) => {
-                let inner_spans = flatten_inlines(inner, is_heading, heading_level, is_quote);
+                let inner_spans =
+                    flatten_inlines(inner, is_heading, heading_level, is_quote, respect_css);
                 for mut s in inner_spans {
                     s.bold = true;
                     spans.push(s);
                 }
             }
             Inline::Italic(inner) => {
-                let inner_spans = flatten_inlines(inner, is_heading, heading_level, is_quote);
+                let inner_spans =
+                    flatten_inlines(inner, is_heading, heading_level, is_quote, respect_css);
                 for mut s in inner_spans {
                     s.italic = true;
                     spans.push(s);
                 }
             }
             Inline::Underline(inner) => {
-                let inner_spans = flatten_inlines(inner, is_heading, heading_level, is_quote);
+                let inner_spans =
+                    flatten_inlines(inner, is_heading, heading_level, is_quote, respect_css);
                 for mut s in inner_spans {
                     s.underline = true;
                     spans.push(s);
                 }
             }
             Inline::Strike(inner) => {
-                let inner_spans = flatten_inlines(inner, is_heading, heading_level, is_quote);
+                let inner_spans =
+                    flatten_inlines(inner, is_heading, heading_level, is_quote, respect_css);
                 for mut s in inner_spans {
                     s.strike = true;
                     spans.push(s);
@@ -331,7 +411,8 @@ fn flatten_inlines(
                 target,
                 inlines: inner,
             } => {
-                let inner_spans = flatten_inlines(inner, is_heading, heading_level, is_quote);
+                let inner_spans =
+                    flatten_inlines(inner, is_heading, heading_level, is_quote, respect_css);
                 for mut s in inner_spans {
                     s.link_target = Some(target.clone());
                     s.underline = true;
@@ -391,7 +472,7 @@ fn wrap_spans_into_lines(
     }
 
     for span in spans {
-        let words: Vec<&str> = span.text.split_inclusive(' ').collect();
+        let words = tokenize_for_wrapping(&span.text);
         for word in words {
             let word_width = word.width();
 
@@ -479,6 +560,30 @@ fn wrap_spans_into_lines(
     }
 
     lines
+}
+
+/// Split text into wrap-safe tokens: Unicode word boundaries (so runs of
+/// Latin-script words break only at spaces/punctuation, as before), with any
+/// resulting wide-character (CJK/fullwidth) token further split into
+/// individual grapheme clusters. This lets space-free scripts (Chinese,
+/// Japanese, etc.) wrap correctly character-by-character — as is
+/// conventional for those scripts, with no hyphen needed — instead of being
+/// treated as one unbreakable "word" spanning the entire paragraph.
+fn tokenize_for_wrapping(text: &str) -> Vec<&str> {
+    let mut result = Vec::new();
+    for word in text.split_word_bounds() {
+        let is_wide_led = word.chars().next().is_some_and(is_wide_char);
+        if is_wide_led && word.chars().count() > 1 {
+            result.extend(word.graphemes(true));
+        } else {
+            result.push(word);
+        }
+    }
+    result
+}
+
+fn is_wide_char(c: char) -> bool {
+    c.width().unwrap_or(1) > 1
 }
 
 /// Insert `spacing - 1` blank lines between each pair of consecutive wrapped

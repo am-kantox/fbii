@@ -70,6 +70,11 @@ pub enum Inline {
         alt: Option<String>,
     },
     LineBreak,
+    /// Content that carried an inline `display: none` CSS style. Always
+    /// captured at parse time regardless of `respect_epub_css`, so the
+    /// setting can be toggled at runtime (via layout rebuild) without
+    /// re-parsing the source file.
+    Hidden(Vec<Inline>),
 }
 
 impl Inline {
@@ -80,6 +85,7 @@ impl Inline {
             | Inline::Italic(children)
             | Inline::Underline(children)
             | Inline::Strike(children)
+            | Inline::Hidden(children)
             | Inline::Link {
                 inlines: children, ..
             } => children
@@ -117,15 +123,32 @@ pub struct PoemStanza {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Block {
     Paragraph(Vec<Inline>),
-    Heading { level: u8, inlines: Vec<Inline> },
+    Heading {
+        level: u8,
+        inlines: Vec<Inline>,
+    },
     Quote(Vec<Block>),
     Epigraph(Vec<Block>),
     Annotation(Vec<Block>),
-    List { ordered: bool, items: Vec<ListItem> },
-    Table { rows: Vec<TableRow> },
-    Poem { stanzas: Vec<PoemStanza> },
-    Image { key: String, alt: Option<String> },
+    List {
+        ordered: bool,
+        items: Vec<ListItem>,
+    },
+    Table {
+        rows: Vec<TableRow>,
+    },
+    Poem {
+        stanzas: Vec<PoemStanza>,
+    },
+    Image {
+        key: String,
+        alt: Option<String>,
+    },
     Empty,
+    /// Content that carried an inline `display: none` CSS style. See
+    /// `Inline::Hidden` for why this is captured unconditionally at parse
+    /// time rather than only when `respect_epub_css` is enabled.
+    Hidden(Vec<Block>),
 }
 
 impl Block {
@@ -136,7 +159,10 @@ impl Block {
                 .map(|i| i.plain_text())
                 .collect::<Vec<_>>()
                 .join(""),
-            Block::Quote(blocks) | Block::Epigraph(blocks) | Block::Annotation(blocks) => blocks
+            Block::Quote(blocks)
+            | Block::Epigraph(blocks)
+            | Block::Annotation(blocks)
+            | Block::Hidden(blocks) => blocks
                 .iter()
                 .map(|b| b.plain_text())
                 .collect::<Vec<_>>()

@@ -1,6 +1,6 @@
 pub mod models;
 
-pub use models::{DbBook, DbBookmark, DbReadingSession};
+pub use models::{DbBook, DbBookmark, DbReadingSession, ReadingStats};
 
 use crate::formats::model::Book;
 use crate::utils::{sha1_hex, AppError, Result};
@@ -288,5 +288,19 @@ impl LibraryDb {
             .await?;
 
         Ok(())
+    }
+
+    /// Aggregate reading-session stats (session count, total pages read)
+    /// for a book, for display in the reader's Info modal.
+    pub async fn get_reading_stats(&self, book_id: &str) -> Result<ReadingStats> {
+        let stats = sqlx::query_as::<_, ReadingStats>(
+            "SELECT COUNT(*) AS sessions, COALESCE(SUM(pages_read), 0) AS total_pages \
+             FROM reading_sessions WHERE book_id = ?1",
+        )
+        .bind(book_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(stats)
     }
 }

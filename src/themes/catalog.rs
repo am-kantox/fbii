@@ -160,3 +160,78 @@ impl Theme {
             .add_modifier(Modifier::BOLD)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_all_named_themes_resolve_to_the_matching_theme() {
+        for name in THEME_NAMES {
+            if *name == "auto" {
+                continue; // covered separately below, since it's system-dependent.
+            }
+            let theme = Theme::get_by_name(name);
+            let normalized_name = name.replace('-', "_");
+            assert!(
+                theme.name == *name || theme.name.replace('-', "_") == normalized_name,
+                "Theme::get_by_name({:?}) returned unexpected theme {:?}",
+                name,
+                theme.name
+            );
+        }
+    }
+
+    #[test]
+    fn test_alternate_spellings_resolve_to_the_same_theme() {
+        assert_eq!(Theme::get_by_name("nord_dark").name, "nord-dark");
+        assert_eq!(Theme::get_by_name("NORD-DARK").name, "nord-dark");
+        assert_eq!(Theme::get_by_name("github_light").name, "github-light");
+    }
+
+    #[test]
+    fn test_auto_theme_resolves_to_a_valid_nord_variant() {
+        let theme = Theme::get_by_name("auto");
+        assert!(theme.name == "nord-dark" || theme.name == "nord-light");
+    }
+
+    #[test]
+    fn test_unknown_theme_name_falls_back_to_system_default() {
+        let fallback = Theme::get_by_name("totally-not-a-real-theme");
+        assert!(fallback.name == "nord-dark" || fallback.name == "nord-light");
+    }
+
+    #[test]
+    fn test_style_methods_apply_expected_colors_and_modifiers() {
+        let theme = Theme::dracula();
+
+        let base = theme.base_style();
+        assert_eq!(base.bg, Some(theme.background));
+        assert_eq!(base.fg, Some(theme.foreground));
+
+        let heading = theme.heading_style();
+        assert_eq!(heading.fg, Some(theme.heading));
+        assert!(heading.add_modifier.contains(Modifier::BOLD));
+
+        let status = theme.status_style();
+        assert_eq!(status.bg, Some(theme.status_bg));
+        assert_eq!(status.fg, Some(theme.status_fg));
+
+        let highlight = theme.highlight_style();
+        assert_eq!(highlight.bg, Some(theme.highlight));
+        assert_eq!(highlight.fg, Some(theme.background));
+    }
+
+    #[test]
+    fn test_every_catalog_entry_is_constructible_and_distinct() {
+        let mut seen_names = std::collections::HashSet::new();
+        for name in THEME_NAMES {
+            let theme = Theme::get_by_name(name);
+            seen_names.insert(theme.name);
+        }
+        // "auto" resolves to one of the two nord variants already present
+        // in the catalog, so the distinct set is one smaller than the full
+        // catalog list.
+        assert_eq!(seen_names.len(), THEME_NAMES.len() - 1);
+    }
+}

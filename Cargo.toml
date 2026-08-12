@@ -21,8 +21,13 @@ zip = "2.2"
 encoding_rs = "0.8"
 unicode-width = "0.2"
 unicode-normalization = "0.1"
-ratatui-image = "3.0"
-image = "0.25"
+unicode-segmentation = "1"
+ratatui-image = { version = "3.0", default-features = false }
+# Only enable the image codecs actually useful for e-book cover art; this
+# unions with ratatui-image's own mandatory "jpeg" feature request rather
+# than pulling in ratatui-image's full default codec set (tiff, bmp, ico,
+# dds, tga, hdr, farbfeld, qoi, avif, ...).
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
 base64 = "0.22"
 sha1 = "0.10"
 thiserror = "2.0"

@@ -73,6 +73,11 @@ pub struct App {
     /// Approximate number of "pages" turned during the current reading
     /// session (incremented on page/half-page navigation).
     pub session_pages_read: u32,
+    /// Set after the first `Delete` press on a book or bookmark; the very
+    /// next `Delete` press actually performs the deletion, and any other
+    /// recognized action cancels the pending confirmation. Prevents a
+    /// single stray keypress from permanently removing a library entry.
+    pub delete_confirm_pending: bool,
 }
 
 impl App {
@@ -109,6 +114,7 @@ impl App {
             image_picker: None,
             active_session_id: None,
             session_pages_read: 0,
+            delete_confirm_pending: false,
         }
     }
 
@@ -130,10 +136,11 @@ impl App {
     }
 
     pub async fn load_book(&mut self, book: Book) {
-        let layout = BookLayout::build(
+        let layout = BookLayout::build_with_css(
             &book,
             &self.config.typography,
             self.config.display.simplified_mode,
+            self.config.display.respect_epub_css,
         );
         let search_index = BookSearchIndex::build(&book);
 
@@ -157,6 +164,7 @@ impl App {
         self.reader_view.scroll_offset = saved_offset;
         self.reader_view.show_image = false;
         self.reader_view.image_state = None;
+        self.reader_view.image_cache.clear();
         self.mode = AppMode::Reader;
 
         let _ = self.db.record_history(&book_id).await;
@@ -229,14 +237,46 @@ impl App {
                 .map(|l| l.char_start)
                 .unwrap_or(0);
 
-            let layout = BookLayout::build(
+            let layout = BookLayout::build_with_css(
                 book,
                 &self.config.typography,
                 self.config.display.simplified_mode,
+                self.config.display.respect_epub_css,
             );
             self.reader_view.scroll_offset = layout.line_at_char_offset(char_offset);
             self.active_layout = Some(layout);
         }
+    }
+
+    /// Populate cover-art and reading-stats state for the Info modal.
+    /// Called when the modal is opened, so rendering itself stays
+    /// synchronous.
+    async fn load_info_modal_data(&mut self) {
+        let book_id = match &self.active_book {
+            Some(book) => book.id.clone(),
+            None => return,
+        };
+
+        self.reader_view.reading_stats = self.db.get_reading_stats(&book_id).await.ok();
+
+        let cover_bytes = self.active_book.as_ref().and_then(|book| {
+            book.metadata
+                .cover_image_key
+                .as_ref()
+                .and_then(|key| book.resources.get(key).cloned())
+        });
+
+        self.reader_view.cover_image_state = match (cover_bytes, self.image_picker) {
+            (Some(bytes), Some(mut picker)) => match image::load_from_memory(&bytes) {
+                Ok(dyn_img) => {
+                    let protocol = picker.new_resize_protocol(dyn_img);
+                    self.image_picker = Some(picker);
+                    Some(protocol)
+                }
+                Err(_) => None,
+            },
+            _ => None,
+        };
     }
 
     /// Handle the `ViewImage` action: look up the image resource key on the
@@ -284,6 +324,12 @@ impl App {
     }
 
     pub async fn handle_action(&mut self, action: KeyAction) {
+        // Any action other than a repeated `Delete` cancels a pending
+        // delete confirmation, so a stray keypress never lets a later,
+        // unrelated `d` press slip through as a confirmation.
+        if !matches!(action, KeyAction::Delete) {
+            self.delete_confirm_pending = false;
+        }
         match action {
             KeyAction::Quit => {
                 if self.mode == AppMode::Reader {
@@ -296,6 +342,8 @@ impl App {
                     self.reader_view.show_themes = false;
                 } else if self.reader_view.show_info {
                     self.reader_view.show_info = false;
+                    self.reader_view.cover_image_state = None;
+                    self.reader_view.reading_stats = None;
                 } else if self.reader_view.show_bookmarks {
                     self.reader_view.show_bookmarks = false;
                 } else if self.reader_view.show_toc {
@@ -316,6 +364,12 @@ impl App {
             KeyAction::Info => {
                 if self.mode == AppMode::Reader {
                     self.reader_view.show_info = !self.reader_view.show_info;
+                    if self.reader_view.show_info {
+                        self.load_info_modal_data().await;
+                    } else {
+                        self.reader_view.cover_image_state = None;
+                        self.reader_view.reading_stats = None;
+                    }
                 }
             }
             KeyAction::SaveToLibrary => {
@@ -410,39 +464,67 @@ impl App {
                 }
             }
             KeyAction::Delete => {
-                if self.mode == AppMode::Reader && self.reader_view.show_bookmarks {
-                    let idx = self.reader_view.bookmark_state.selected().unwrap_or(0);
-                    let target = self.reader_view.bookmark_items.get(idx).cloned();
-                    if let Some(bm) = target {
-                        let _ = self.db.delete_bookmark(&bm.id).await;
-                        if let Some(book) = &self.active_book {
-                            if let Ok(bms) = self.db.list_bookmarks(&book.id).await {
-                                self.reader_view.bookmark_items = bms;
-                            }
-                        }
-                        let len = self.reader_view.bookmark_items.len();
-                        if len == 0 {
-                            self.reader_view.bookmark_state.select(None);
-                        } else if idx >= len {
-                            self.reader_view.bookmark_state.select(Some(len - 1));
-                        }
-                        self.status_message = Some(format!("Deleted bookmark '{}'", bm.label));
-                    }
-                } else if self.mode == AppMode::Library {
+                let bookmark_target =
+                    if self.mode == AppMode::Reader && self.reader_view.show_bookmarks {
+                        let idx = self.reader_view.bookmark_state.selected().unwrap_or(0);
+                        self.reader_view.bookmark_items.get(idx).cloned()
+                    } else {
+                        None
+                    };
+                let library_target = if self.mode == AppMode::Library {
                     let idx = self.library_view.state.selected().unwrap_or(0);
-                    let target = self.visible_library_books().get(idx).map(|b| (*b).clone());
-                    if let Some(db_book) = target {
-                        let _ = self.db.delete_book(&db_book.id).await;
-                        let _ = self.refresh_library().await;
-                        let new_len = self.visible_library_books().len();
-                        if new_len == 0 {
-                            self.library_view.state.select(None);
-                        } else if idx >= new_len {
-                            self.library_view.state.select(Some(new_len - 1));
-                        }
-                        self.status_message =
-                            Some(format!("Deleted '{}' from library", db_book.title));
+                    self.visible_library_books().get(idx).map(|b| (*b).clone())
+                } else {
+                    None
+                };
+
+                if !self.delete_confirm_pending {
+                    // First press: ask for confirmation instead of deleting
+                    // immediately, so a single stray keypress cannot
+                    // permanently remove a library entry or bookmark.
+                    if let Some(bm) = &bookmark_target {
+                        self.delete_confirm_pending = true;
+                        self.status_message = Some(format!(
+                            "Press 'd' again to delete bookmark '{}', or any other key to cancel.",
+                            bm.label
+                        ));
+                    } else if let Some(db_book) = &library_target {
+                        self.delete_confirm_pending = true;
+                        self.status_message = Some(format!(
+                            "Press 'd' again to delete '{}' from the library, or any other key to cancel.",
+                            db_book.title
+                        ));
                     }
+                    return;
+                }
+
+                self.delete_confirm_pending = false;
+                if let Some(bm) = bookmark_target {
+                    let idx = self.reader_view.bookmark_state.selected().unwrap_or(0);
+                    let _ = self.db.delete_bookmark(&bm.id).await;
+                    if let Some(book) = &self.active_book {
+                        if let Ok(bms) = self.db.list_bookmarks(&book.id).await {
+                            self.reader_view.bookmark_items = bms;
+                        }
+                    }
+                    let len = self.reader_view.bookmark_items.len();
+                    if len == 0 {
+                        self.reader_view.bookmark_state.select(None);
+                    } else if idx >= len {
+                        self.reader_view.bookmark_state.select(Some(len - 1));
+                    }
+                    self.status_message = Some(format!("Deleted bookmark '{}'", bm.label));
+                } else if let Some(db_book) = library_target {
+                    let idx = self.library_view.state.selected().unwrap_or(0);
+                    let _ = self.db.delete_book(&db_book.id).await;
+                    let _ = self.refresh_library().await;
+                    let new_len = self.visible_library_books().len();
+                    if new_len == 0 {
+                        self.library_view.state.select(None);
+                    } else if idx >= new_len {
+                        self.library_view.state.select(Some(new_len - 1));
+                    }
+                    self.status_message = Some(format!("Deleted '{}' from library", db_book.title));
                 }
             }
             KeyAction::CycleSort => {
@@ -615,6 +697,7 @@ impl App {
             }
             KeyAction::ToggleCss => {
                 self.config.display.respect_epub_css = !self.config.display.respect_epub_css;
+                self.rebuild_layout_preserving_position();
             }
             KeyAction::ToggleJustify => {
                 self.config.typography.justified = !self.config.typography.justified;
@@ -1070,6 +1153,7 @@ impl App {
                                 &self.config,
                                 &self.theme,
                                 status_msg,
+                                self.image_picker.as_mut(),
                             );
                         }
                     }
@@ -1084,6 +1168,7 @@ impl App {
                                 &self.config,
                                 &self.theme,
                                 status_msg,
+                                self.image_picker.as_mut(),
                             );
                             let chunks = ratatui::layout::Layout::default()
                                 .direction(ratatui::layout::Direction::Vertical)
@@ -1114,6 +1199,7 @@ impl App {
                                 &self.config,
                                 &self.theme,
                                 status_msg,
+                                self.image_picker.as_mut(),
                             );
                         } else {
                             self.library_view.render(
@@ -1159,6 +1245,7 @@ impl App {
                                 &self.config,
                                 &self.theme,
                                 status_msg,
+                                self.image_picker.as_mut(),
                             );
                         } else {
                             self.library_view.render(

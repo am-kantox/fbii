@@ -9,8 +9,10 @@
 - **Database Storage**: Async SQLite library management (`sqlx`) tracking reading history, progress, bookmarks, and reading sessions.
 - **Library Management**: Recursively scan a directory to bulk-import books (`:scan <dir>` or `--scan-dir`), delete books/bookmarks, sort the library (recent/title/author), and live-filter the library list.
 - **Layout & Unicode Wrapping**: `unicode-width` line wrapping with custom measure limits, configurable line/paragraph spacing, and hyphenation.
-- **Full-Text Search Index**: Fast NFKD Unicode-normalized search (stripping accents & diacritics).
-- **Inline Image Viewing**: Renders embedded FB2/EPUB images using whatever terminal graphics protocol is available (Kitty, iTerm2, Sixel, or Unicode half-blocks), via `ratatui-image`.
+- **Full-Text Search Index**: Fast NFKD Unicode-normalized search (stripping accents & diacritics), with correct word wrapping for space-free scripts (CJK, etc.).
+- **Inline Image Rendering**: Images are rendered directly in the scrollable text flow (not just a placeholder) using whatever terminal graphics protocol is available (Kitty, iTerm2, Sixel, or Unicode half-blocks) via `ratatui-image`; `v` zooms the current image to full size. Book cover art is also shown in the Info modal (`i`).
+- **CSS-Aware EPUB Parsing**: Content marked with an inline `display: none` style is hidden by default; toggle `C` to reveal it.
+- **Reading Stats**: Session count and total pages read are tracked per book and shown in the Info modal.
 - **OPDS Catalogs**: Browse and download books from OPDS feeds; custom catalogs are persisted to the config file.
 - **Themes**: Built-in color palettes (`dracula`, `monokai`, `github-dark`, `github-light`).
 
@@ -60,12 +62,17 @@ cargo install --path .
 | `t` | Open Table of Contents modal |
 | `b` | Add bookmark |
 | `B` | List bookmarks modal |
-| `d` | Delete selected book (Library) / delete selected bookmark (Bookmarks modal) |
+| `d` | Delete selected book (Library) / delete selected bookmark (Bookmarks modal); press again to confirm |
 | `r` | Cycle library sort order (Recent / Title / Author) |
-| `v` | View the image on the current line, if any |
+| `v` | Zoom the image on the current line to full size |
+| `i` | Show book info (title, metadata, cover art, reading stats) |
 | `S` | Toggle Simplified Mode |
+| `C` | Toggle whether CSS-hidden (`display: none`) EPUB content is shown |
 | `?` | Help overlay |
 | `q` | Quit / Back to library |
+
+Deleting a book or bookmark requires two presses of `d` in a row; any other
+keypress in between cancels the pending confirmation.
 
 ## Command Mode
 

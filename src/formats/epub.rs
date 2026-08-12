@@ -308,8 +308,31 @@ fn strip_html_tags(html: &str) -> String {
     result
 }
 
+/// Returns true when the element carries an inline `style` attribute with a
+/// `display: none` declaration (case-insensitive, tolerant of surrounding
+/// whitespace). Only inline styles are checked; linked/embedded stylesheets
+/// are not parsed.
+fn has_inline_style_display_none(node: Node) -> bool {
+    node.attribute("style")
+        .map(|s| {
+            s.to_lowercase().split(';').any(|decl| {
+                let mut parts = decl.splitn(2, ':');
+                let prop = parts.next().unwrap_or("").trim();
+                let value = parts.next().unwrap_or("").trim();
+                prop == "display" && value == "none"
+            })
+        })
+        .unwrap_or(false)
+}
+
 fn parse_html_nodes(node: Node, content: &mut Vec<Block>) {
     for child in node.children().filter(|n| n.is_element()) {
+        if has_inline_style_display_none(child) {
+            let mut inner = Vec::new();
+            parse_html_nodes(child, &mut inner);
+            content.push(Block::Hidden(inner));
+            continue;
+        }
         let name = child.tag_name().name().to_lowercase();
         match name.as_str() {
             "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
@@ -389,6 +412,12 @@ fn parse_html_inlines(node: Node, out: &mut Vec<Inline>) {
                 }
             }
         } else if child.is_element() {
+            if has_inline_style_display_none(child) {
+                let mut inner = Vec::new();
+                parse_html_inlines(child, &mut inner);
+                out.push(Inline::Hidden(inner));
+                continue;
+            }
             let name = child.tag_name().name().to_lowercase();
             match name.as_str() {
                 "b" | "strong" => {

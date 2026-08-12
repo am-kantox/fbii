@@ -27,17 +27,39 @@ fn test_layout_word_wrapping_and_measure() {
 #[test]
 fn test_layout_cjk_wide_character_wrapping() {
     let mut book = Book::new("cjk", "/path/cjk.fb2", Metadata::default());
-    book.content = vec![Block::Paragraph(vec![Inline::Text(
-        "日本語の文章と漢字の折り返しテストです。".to_string(),
-    )])];
+    let cjk_text = "日本語の文章と漢字の折り返しテストです。";
+    book.content = vec![Block::Paragraph(vec![Inline::Text(cjk_text.to_string())])];
 
     let config = TypographyConfig {
         measure: 10, // 10 columns (approx 5 CJK characters)
+        paragraph_indent: 0,
         ..Default::default()
     };
 
     let layout = BookLayout::build(&book, &config, false);
-    assert!(layout.lines.len() > 1);
+    // A 20-character, space-free CJK string wrapped at ~5 fullwidth chars
+    // per line should yield several lines, not a single bisection into two
+    // (the old, incorrect behavior for text with no ASCII spaces at all).
+    assert!(layout.lines.len() > 3);
+
+    for line in &layout.lines {
+        let line_text: String = line.spans.iter().map(|s| s.text.as_str()).collect();
+        assert!(
+            unicode_width::UnicodeWidthStr::width(line_text.as_str()) <= 10,
+            "line '{}' exceeds the configured measure",
+            line_text
+        );
+    }
+
+    // No characters should be lost or reordered by the wrapping/tokenizing
+    // fix, and no hyphens should be introduced for a CJK break.
+    let rejoined: String = layout
+        .lines
+        .iter()
+        .flat_map(|l| l.spans.iter())
+        .map(|s| s.text.as_str())
+        .collect();
+    assert_eq!(rejoined, cjk_text);
 }
 
 #[test]

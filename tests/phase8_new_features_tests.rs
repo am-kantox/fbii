@@ -5,7 +5,23 @@ use fbii::formats::{parse_book_file, parse_book_uri};
 use fbii::renderer::BookLayout;
 use fbii::tui::views::library_view::LibrarySortMode;
 use fbii::tui::{App, AppMode};
+use ratatui_image::picker::Picker;
 use tempfile::tempdir;
+
+/// Encode a tiny in-memory image as PNG bytes, for tests that need real,
+/// decodable image data without shipping a binary fixture file.
+fn tiny_png_bytes() -> Vec<u8> {
+    let img = image::RgbImage::from_pixel(2, 2, image::Rgb([200, 100, 50]));
+    let dyn_img = image::DynamicImage::ImageRgb8(img);
+    let mut bytes: Vec<u8> = Vec::new();
+    dyn_img
+        .write_to(
+            &mut std::io::Cursor::new(&mut bytes),
+            image::ImageFormat::Png,
+        )
+        .unwrap();
+    bytes
+}
 
 fn sample_fb2(title: &str, body: &str) -> String {
     format!(
@@ -163,11 +179,30 @@ async fn test_library_sort_filter_and_delete_actions() {
     assert_eq!(filtered[0].title, "Zebra Tales");
     app.library_view.filter.clear();
 
-    // Deleting the selected (filtered/sorted) book removes it from the DB.
+    // Deleting requires two consecutive `Delete` presses: the first only
+    // asks for confirmation and must not remove anything yet.
     app.library_view.state.select(Some(0)); // "Apple Stories" under Title sort
+    app.handle_action(KeyAction::Delete).await;
+    assert_eq!(app.library_books.len(), 2, "first press must only confirm");
+    assert!(app.delete_confirm_pending);
+
+    // Any other recognized action cancels the pending confirmation.
+    app.handle_action(KeyAction::ScrollDown).await;
+    assert!(!app.delete_confirm_pending);
+
+    // Two consecutive presses actually delete the (filtered/sorted)
+    // selected book from the DB.
+    app.library_view.state.select(Some(0));
+    app.handle_action(KeyAction::Delete).await;
+    assert!(
+        app.delete_confirm_pending,
+        "first press should re-arm confirmation"
+    );
+    assert_eq!(app.library_books.len(), 2, "still nothing deleted yet");
     app.handle_action(KeyAction::Delete).await;
     assert_eq!(app.library_books.len(), 1);
     assert_eq!(app.library_books[0].title, "Zebra Tales");
+    assert!(!app.delete_confirm_pending);
 }
 
 #[tokio::test]
@@ -243,4 +278,60 @@ async fn test_toggle_simple_mode_preserves_reading_position() {
     // the same source block after the layout rebuild, not at an arbitrary
     // line index left over from the old layout.
     assert_eq!(new_line.block_index, 1);
+}
+
+#[tokio::test]
+async fn test_view_image_decodes_and_displays_when_picker_available() {
+    let db = LibraryDb::new_in_memory().await.unwrap();
+    let config = Config::default();
+    let config_path = tempdir().unwrap().path().join("config.toml");
+    let mut app = App::new(config, db, config_path);
+
+    // Bypass the real terminal-capability query (which always fails/returns
+    // no capability in a headless test process) by constructing a Picker
+    // directly from a fixed font size, exercising the actual decode path
+    // that is otherwise unreachable in CI.
+    app.image_picker = Some(Picker::from_fontsize((8, 16)));
+
+    let mut book = Book::new("b1", "/books/with_image.fb2", Metadata::default());
+    book.content = vec![Block::Image {
+        key: "cover.png".to_string(),
+        alt: None,
+    }];
+    book.resources
+        .insert("cover.png".to_string(), tiny_png_bytes());
+    app.load_book(book).await;
+
+    // The Block::Image caption line carries the image_key; scroll_offset
+    // starts at 0 which, for a single-block book, is that line.
+    app.handle_action(KeyAction::ViewImage).await;
+
+    assert!(app.reader_view.show_image);
+    assert!(app.reader_view.image_state.is_some());
+    assert_eq!(
+        app.reader_view.current_image_key.as_deref(),
+        Some("cover.png")
+    );
+}
+
+#[tokio::test]
+async fn test_view_image_reports_missing_resource() {
+    let db = LibraryDb::new_in_memory().await.unwrap();
+    let config = Config::default();
+    let config_path = tempdir().unwrap().path().join("config.toml");
+    let mut app = App::new(config, db, config_path);
+    app.image_picker = Some(Picker::from_fontsize((8, 16)));
+
+    let mut book = Book::new("b1", "/books/with_image.fb2", Metadata::default());
+    book.content = vec![Block::Image {
+        key: "missing.png".to_string(),
+        alt: None,
+    }];
+    // Note: no matching entry in book.resources.
+    app.load_book(book).await;
+
+    app.handle_action(KeyAction::ViewImage).await;
+
+    assert!(!app.reader_view.show_image);
+    assert!(app.reader_view.image_state.is_none());
 }

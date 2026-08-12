@@ -37,3 +37,11 @@ pub struct DbReadingSession {
     pub end_time: Option<DateTime<Utc>>,
     pub pages_read: i64,
 }
+
+/// Aggregate reading-session stats for a single book, surfaced in the
+/// reader's Info modal.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, FromRow)]
+pub struct ReadingStats {
+    pub sessions: i64,
+    pub total_pages: i64,
+}

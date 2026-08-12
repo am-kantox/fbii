@@ -18,6 +18,9 @@ pub fn simplify_blocks(blocks: &[Block]) -> Vec<Block> {
                 let simplified_inner = simplify_blocks(inner);
                 result.extend(simplified_inner);
             }
+            // CSS-hidden content is omitted by this context-free transform,
+            // matching the typical default expectation for `display: none`.
+            Block::Hidden(_) => {}
             Block::List { ordered, items } => {
                 let mut simple_items = Vec::new();
                 for item in items {
@@ -73,6 +76,9 @@ fn simplify_inlines(inlines: &[Inline]) -> Vec<Inline> {
             Inline::Strike(inner) => out.push(Inline::Strike(simplify_inlines(inner))),
             Inline::Code(t) => out.push(Inline::Code(t.clone())),
             Inline::Link { inlines: inner, .. } => out.extend(simplify_inlines(inner)),
+            // CSS-hidden content is omitted by this context-free transform,
+            // matching the typical default expectation for `display: none`.
+            Inline::Hidden(_) => {}
             Inline::Image { alt, key } => {
                 let label = alt.clone().unwrap_or_else(|| format!("[Image: {}]", key));
                 out.push(Inline::Text(label));
