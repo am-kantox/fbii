@@ -43,6 +43,7 @@ pub struct App {
     pub key_dispatcher: KeymapDispatcher,
     pub library_view: LibraryView,
     pub reader_view: ReaderView,
+    pub status_message: Option<String>,
     pub is_running: bool,
 }
 
@@ -65,6 +66,7 @@ impl App {
             reader_view: ReaderView::new(),
             input_buffer: String::new(),
             bookmarks: Vec::new(),
+            status_message: None,
             is_running: true,
         }
     }
@@ -405,21 +407,29 @@ impl App {
         while self.is_running {
             terminal.draw(|f| {
                 let area = f.area();
+                let status_msg = self.status_message.as_deref();
                 match self.mode {
                     AppMode::Library => {
-                        self.library_view
-                            .render(f, area, &self.library_books, &self.theme);
+                        self.library_view.render(
+                            f,
+                            area,
+                            &self.library_books,
+                            &self.theme,
+                            status_msg,
+                        );
                     }
                     AppMode::Reader => {
                         if let (Some(book), Some(layout)) = (&self.active_book, &self.active_layout)
                         {
-                            self.reader_view.render(f, area, book, layout, &self.theme);
+                            self.reader_view
+                                .render(f, area, book, layout, &self.theme, status_msg);
                         }
                     }
                     AppMode::SearchInput => {
                         if let (Some(book), Some(layout)) = (&self.active_book, &self.active_layout)
                         {
-                            self.reader_view.render(f, area, book, layout, &self.theme);
+                            self.reader_view
+                                .render(f, area, book, layout, &self.theme, status_msg);
                             let chunks = ratatui::layout::Layout::default()
                                 .direction(ratatui::layout::Direction::Vertical)
                                 .constraints([
@@ -441,10 +451,16 @@ impl App {
                     AppMode::CommandInput => {
                         if let (Some(book), Some(layout)) = (&self.active_book, &self.active_layout)
                         {
-                            self.reader_view.render(f, area, book, layout, &self.theme);
+                            self.reader_view
+                                .render(f, area, book, layout, &self.theme, status_msg);
                         } else {
-                            self.library_view
-                                .render(f, area, &self.library_books, &self.theme);
+                            self.library_view.render(
+                                f,
+                                area,
+                                &self.library_books,
+                                &self.theme,
+                                status_msg,
+                            );
                         }
                         let chunks = ratatui::layout::Layout::default()
                             .direction(ratatui::layout::Direction::Vertical)
@@ -473,10 +489,16 @@ impl App {
                             .split(area);
                         if let (Some(book), Some(layout)) = (&self.active_book, &self.active_layout)
                         {
-                            self.reader_view.render(f, area, book, layout, &self.theme);
+                            self.reader_view
+                                .render(f, area, book, layout, &self.theme, status_msg);
                         } else {
-                            self.library_view
-                                .render(f, area, &self.library_books, &self.theme);
+                            self.library_view.render(
+                                f,
+                                area,
+                                &self.library_books,
+                                &self.theme,
+                                status_msg,
+                            );
                         }
                         f.render_widget(ratatui::widgets::Clear, chunks[1]);
                         let prompt = ratatui::widgets::Paragraph::new(format!(
@@ -496,6 +518,8 @@ impl App {
             tokio::select! {
                 Some(Ok(event)) = event_stream.next() => {
                     if let Event::Key(key_event) = event {
+                        self.status_message = None;
+
                         // Support Ctrl+V paste in input modes
                         if (self.mode == AppMode::SearchInput
                             || self.mode == AppMode::CommandInput
@@ -519,16 +543,28 @@ impl App {
                                     crossterm::event::KeyCode::Enter => {
                                         let path_str = self.input_buffer.trim().to_string();
                                         self.input_buffer.clear();
-                                        let path = std::path::PathBuf::from(&path_str);
-                                        if let Ok(book) = crate::formats::parse_book_file(&path) {
-                                            self.load_book(book).await;
-                                        } else {
-                                            self.mode = AppMode::Library;
+                                        match crate::formats::parse_book_uri(&path_str) {
+                                            Ok(book) => {
+                                                self.status_message = None;
+                                                self.load_book(book).await;
+                                            }
+                                            Err(e) => {
+                                                self.status_message = Some(format!("{}", e));
+                                                self.mode = if self.active_book.is_some() {
+                                                    AppMode::Reader
+                                                } else {
+                                                    AppMode::Library
+                                                };
+                                            }
                                         }
                                     }
                                     crossterm::event::KeyCode::Esc => {
                                         self.input_buffer.clear();
-                                        self.mode = AppMode::Library;
+                                        self.mode = if self.active_book.is_some() {
+                                            AppMode::Reader
+                                        } else {
+                                            AppMode::Library
+                                        };
                                     }
                                     crossterm::event::KeyCode::Backspace => {
                                         self.input_buffer.pop();
@@ -633,9 +669,14 @@ impl App {
                                             self.config.theme = theme_name.trim().to_string();
                                             self.theme = Theme::get_by_name(theme_name.trim());
                                         } else if let Some(path_str) = cmd.strip_prefix("open ").or_else(|| cmd.strip_prefix("o ")) {
-                                            let path = std::path::PathBuf::from(path_str.trim());
-                                            if let Ok(book) = crate::formats::parse_book_file(&path) {
-                                                self.load_book(book).await;
+                                            match crate::formats::parse_book_uri(path_str.trim()) {
+                                                Ok(book) => {
+                                                    self.status_message = None;
+                                                    self.load_book(book).await;
+                                                }
+                                                Err(e) => {
+                                                    self.status_message = Some(format!("{}", e));
+                                                }
                                             }
                                         } else if cmd == "w" || cmd == "save" {
                                             self.handle_action(KeyAction::SaveToLibrary).await;

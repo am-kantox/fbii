@@ -51,6 +51,7 @@ impl ReaderView {
         book: &Book,
         layout: &BookLayout,
         theme: &Theme,
+        status_message: Option<&str>,
     ) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -124,15 +125,19 @@ impl ReaderView {
             "░".repeat(bar_width - filled_len)
         );
 
-        let status_text = format!(
-            " {} - {} | {} Line {}/{} ({:.1}%) | [?] Help ",
-            book.metadata.title,
-            book.metadata.authors.join(", "),
-            progress_bar,
-            self.scroll_offset + 1,
-            total_lines.max(1),
-            progress_percent
-        );
+        let status_text = if let Some(msg) = status_message {
+            format!(" ⚠️ {} ", msg)
+        } else {
+            format!(
+                " {} - {} | {} Line {}/{} ({:.1}%) | [?] Help ",
+                book.metadata.title,
+                book.metadata.authors.join(", "),
+                progress_bar,
+                self.scroll_offset + 1,
+                total_lines.max(1),
+                progress_percent
+            )
+        };
 
         let status_bar = Paragraph::new(status_text).style(theme.status_style());
         f.render_widget(status_bar, chunks[1]);

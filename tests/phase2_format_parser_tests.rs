@@ -182,3 +182,27 @@ fn test_unsupported_file_extension_error() {
     let res = parse_book_file(Path::new("/tmp/nonexistent_file.pdf"));
     assert!(res.is_err());
 }
+
+#[test]
+fn test_parse_book_uri_file_and_percent_decoding() {
+    let temp_file = NamedTempFile::new().unwrap();
+    let fb2_path = temp_file.path().with_extension("fb2");
+    let fb2_xml = r#"<?xml version="1.0" encoding="utf-8"?>
+<FictionBook>
+  <description>
+    <title-info>
+      <book-title>URI Book</book-title>
+      <author><first-name>Test</first-name><last-name>Author</last-name></author>
+    </title-info>
+  </description>
+  <body><section><p>URI content.</p></section></body>
+</FictionBook>"#;
+
+    std::fs::write(&fb2_path, fb2_xml).unwrap();
+
+    let uri_string = format!("file://{}", fb2_path.display());
+    let book = fbii::formats::parse_book_uri(&uri_string).unwrap();
+    assert_eq!(book.metadata.title, "URI Book");
+
+    let _ = std::fs::remove_file(fb2_path);
+}

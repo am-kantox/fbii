@@ -17,7 +17,14 @@ impl LibraryView {
         Self { state }
     }
 
-    pub fn render(&mut self, f: &mut Frame, area: Rect, books: &[DbBook], theme: &Theme) {
+    pub fn render(
+        &mut self,
+        f: &mut Frame,
+        area: Rect,
+        books: &[DbBook],
+        theme: &Theme,
+        status_message: Option<&str>,
+    ) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(5), Constraint::Length(3)])
@@ -56,8 +63,13 @@ impl LibraryView {
             f.render_stateful_widget(list, chunks[0], &mut self.state);
         }
 
-        let help = Paragraph::new("[j/k] Navigate | [Enter] Read | [o] Open File | [q] Quit")
-            .style(theme.status_style());
+        let footer_text = if let Some(msg) = status_message {
+            format!(" ⚠️ {} ", msg)
+        } else {
+            "[j/k] Navigate | [Enter] Read | [o] Open File | [q] Quit".to_string()
+        };
+
+        let help = Paragraph::new(footer_text).style(theme.status_style());
         f.render_widget(help, chunks[1]);
     }
 }

@@ -2,7 +2,6 @@ use clap::Parser;
 use fbii::cli::CliArgs;
 use fbii::config::Config;
 use fbii::db::LibraryDb;
-use fbii::formats::parse_book_file;
 use fbii::tui::App;
 use fbii::utils::Result;
 
@@ -35,13 +34,14 @@ async fn main() -> Result<()> {
     let mut app = App::new(config, db);
 
     if let Some(file_path) = args.file_path {
-        match parse_book_file(&file_path) {
+        let uri_str = file_path.to_string_lossy();
+        match fbii::formats::parse_book_uri(&uri_str) {
             Ok(book) => {
                 app.db.upsert_book(&book, 0, 0.0).await?;
                 app.load_book(book).await;
             }
             Err(e) => {
-                eprintln!("Error opening e-book file '{}': {}", file_path.display(), e);
+                eprintln!("Error opening e-book URI '{}': {}", uri_str, e);
                 std::process::exit(1);
             }
         }
