@@ -44,12 +44,14 @@ impl ReaderView {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn render(
         &mut self,
         f: &mut Frame,
         area: Rect,
         book: &Book,
         layout: &BookLayout,
+        config: &crate::config::Config,
         theme: &Theme,
         status_message: Option<&str>,
     ) {
@@ -66,10 +68,15 @@ impl ReaderView {
             .take(viewport_height);
 
         let mut paragraph_lines = Vec::new();
-        for wrapped_line in visible_lines {
+        for line in visible_lines {
+            if line.is_empty_line {
+                paragraph_lines.push(Line::from(""));
+                continue;
+            }
+
             let mut spans = Vec::new();
-            for styled in &wrapped_line.spans {
-                let mut style = Style::default().fg(theme.foreground);
+            for styled in &line.spans {
+                let mut style = theme.base_style();
                 if styled.bold {
                     style = style.add_modifier(Modifier::BOLD);
                 }
@@ -93,16 +100,20 @@ impl ReaderView {
             paragraph_lines.push(Line::from(spans));
         }
 
-        let content_width = (80u16).min(chunks[0].width);
-        let horizontal_margin = chunks[0].width.saturating_sub(content_width) / 2;
-        let reader_area = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Length(horizontal_margin),
-                Constraint::Length(content_width),
-                Constraint::Min(0),
-            ])
-            .split(chunks[0])[1];
+        let reader_area = if config.display.widescreen {
+            chunks[0]
+        } else {
+            let content_width = (config.typography.measure).min(chunks[0].width);
+            let horizontal_margin = chunks[0].width.saturating_sub(content_width) / 2;
+            Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([
+                    Constraint::Length(horizontal_margin),
+                    Constraint::Length(content_width),
+                    Constraint::Min(0),
+                ])
+                .split(chunks[0])[1]
+        };
 
         let reader_widget = Paragraph::new(paragraph_lines).style(theme.base_style());
         f.render_widget(reader_widget, reader_area);

@@ -44,6 +44,10 @@ pub struct App {
     pub library_view: LibraryView,
     pub reader_view: ReaderView,
     pub status_message: Option<String>,
+    pub command_history: Vec<String>,
+    pub search_history: Vec<String>,
+    pub command_history_idx: Option<usize>,
+    pub search_history_idx: Option<usize>,
     pub is_running: bool,
 }
 
@@ -67,6 +71,10 @@ impl App {
             input_buffer: String::new(),
             bookmarks: Vec::new(),
             status_message: None,
+            command_history: Vec::new(),
+            search_history: Vec::new(),
+            command_history_idx: None,
+            search_history_idx: None,
             is_running: true,
         }
     }
@@ -390,6 +398,17 @@ impl App {
                     self.active_layout = Some(layout);
                 }
             }
+            KeyAction::ToggleWidescreen => {
+                self.config.display.widescreen = !self.config.display.widescreen;
+                if let Some(book) = &self.active_book {
+                    let layout = BookLayout::build(
+                        book,
+                        &self.config.typography,
+                        self.config.display.simplified_mode,
+                    );
+                    self.active_layout = Some(layout);
+                }
+            }
         }
     }
 
@@ -421,15 +440,29 @@ impl App {
                     AppMode::Reader => {
                         if let (Some(book), Some(layout)) = (&self.active_book, &self.active_layout)
                         {
-                            self.reader_view
-                                .render(f, area, book, layout, &self.theme, status_msg);
+                            self.reader_view.render(
+                                f,
+                                area,
+                                book,
+                                layout,
+                                &self.config,
+                                &self.theme,
+                                status_msg,
+                            );
                         }
                     }
                     AppMode::SearchInput => {
                         if let (Some(book), Some(layout)) = (&self.active_book, &self.active_layout)
                         {
-                            self.reader_view
-                                .render(f, area, book, layout, &self.theme, status_msg);
+                            self.reader_view.render(
+                                f,
+                                area,
+                                book,
+                                layout,
+                                &self.config,
+                                &self.theme,
+                                status_msg,
+                            );
                             let chunks = ratatui::layout::Layout::default()
                                 .direction(ratatui::layout::Direction::Vertical)
                                 .constraints([
@@ -451,8 +484,15 @@ impl App {
                     AppMode::CommandInput => {
                         if let (Some(book), Some(layout)) = (&self.active_book, &self.active_layout)
                         {
-                            self.reader_view
-                                .render(f, area, book, layout, &self.theme, status_msg);
+                            self.reader_view.render(
+                                f,
+                                area,
+                                book,
+                                layout,
+                                &self.config,
+                                &self.theme,
+                                status_msg,
+                            );
                         } else {
                             self.library_view.render(
                                 f,
@@ -489,8 +529,15 @@ impl App {
                             .split(area);
                         if let (Some(book), Some(layout)) = (&self.active_book, &self.active_layout)
                         {
-                            self.reader_view
-                                .render(f, area, book, layout, &self.theme, status_msg);
+                            self.reader_view.render(
+                                f,
+                                area,
+                                book,
+                                layout,
+                                &self.config,
+                                &self.theme,
+                                status_msg,
+                            );
                         } else {
                             self.library_view.render(
                                 f,
@@ -577,8 +624,33 @@ impl App {
                             }
                             AppMode::SearchInput => {
                                 match key_event.code {
+                                    crossterm::event::KeyCode::Up => {
+                                        if !self.search_history.is_empty() {
+                                            let new_idx = match self.search_history_idx {
+                                                None => self.search_history.len().saturating_sub(1),
+                                                Some(idx) => idx.saturating_sub(1),
+                                            };
+                                            self.search_history_idx = Some(new_idx);
+                                            self.input_buffer = self.search_history[new_idx].clone();
+                                        }
+                                    }
+                                    crossterm::event::KeyCode::Down => {
+                                        if let Some(idx) = self.search_history_idx {
+                                            if idx + 1 < self.search_history.len() {
+                                                self.search_history_idx = Some(idx + 1);
+                                                self.input_buffer = self.search_history[idx + 1].clone();
+                                            } else {
+                                                self.search_history_idx = None;
+                                                self.input_buffer.clear();
+                                            }
+                                        }
+                                    }
                                     crossterm::event::KeyCode::Enter => {
                                         let query = self.input_buffer.clone();
+                                        if !query.trim().is_empty() && self.search_history.last() != Some(&query) {
+                                            self.search_history.push(query.clone());
+                                        }
+                                        self.search_history_idx = None;
                                         self.input_buffer.clear();
                                         self.mode = AppMode::Reader;
                                         if let Some(index) = &self.search_index {
@@ -593,6 +665,7 @@ impl App {
                                     }
                                     crossterm::event::KeyCode::Esc => {
                                         self.input_buffer.clear();
+                                        self.search_history_idx = None;
                                         self.mode = AppMode::Reader;
                                     }
                                     crossterm::event::KeyCode::Backspace => {
@@ -606,8 +679,33 @@ impl App {
                             }
                             AppMode::CommandInput => {
                                 match key_event.code {
+                                    crossterm::event::KeyCode::Up => {
+                                        if !self.command_history.is_empty() {
+                                            let new_idx = match self.command_history_idx {
+                                                None => self.command_history.len().saturating_sub(1),
+                                                Some(idx) => idx.saturating_sub(1),
+                                            };
+                                            self.command_history_idx = Some(new_idx);
+                                            self.input_buffer = self.command_history[new_idx].clone();
+                                        }
+                                    }
+                                    crossterm::event::KeyCode::Down => {
+                                        if let Some(idx) = self.command_history_idx {
+                                            if idx + 1 < self.command_history.len() {
+                                                self.command_history_idx = Some(idx + 1);
+                                                self.input_buffer = self.command_history[idx + 1].clone();
+                                            } else {
+                                                self.command_history_idx = None;
+                                                self.input_buffer.clear();
+                                            }
+                                        }
+                                    }
                                     crossterm::event::KeyCode::Enter => {
                                         let cmd = self.input_buffer.trim().to_string();
+                                        if !cmd.is_empty() && self.command_history.last() != Some(&cmd) {
+                                            self.command_history.push(cmd.clone());
+                                        }
+                                        self.command_history_idx = None;
                                         self.input_buffer.clear();
                                         let default_mode = if self.active_book.is_some() {
                                             AppMode::Reader
@@ -690,6 +788,8 @@ impl App {
                                             self.reader_view.show_info = true;
                                         } else if cmd == "help" || cmd == "h" {
                                             self.reader_view.show_help = true;
+                                        } else if cmd == "widescreen" || cmd == "wide" {
+                                            self.handle_action(KeyAction::ToggleWidescreen).await;
                                         } else if cmd == "simple" || cmd == "s" {
                                             self.handle_action(KeyAction::ToggleSimpleMode).await;
                                         } else if cmd == "css" {

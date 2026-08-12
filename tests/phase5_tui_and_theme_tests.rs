@@ -145,4 +145,10 @@ async fn test_app_action_handling() {
     // Quit while in Library stops app
     app.handle_action(KeyAction::Quit).await;
     assert!(!app.is_running);
+
+    // Test Widescreen toggle
+    app.handle_action(KeyAction::ToggleWidescreen).await;
+    assert!(app.config.display.widescreen);
+    app.handle_action(KeyAction::ToggleWidescreen).await;
+    assert!(!app.config.display.widescreen);
 }

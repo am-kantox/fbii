@@ -28,6 +28,8 @@ pub struct DisplayConfig {
     pub simplified_mode: bool,
     pub respect_epub_css: bool,
     pub image_protocol: String,
+    #[serde(default)]
+    pub widescreen: bool,
 }
 
 impl Default for DisplayConfig {
@@ -36,6 +38,7 @@ impl Default for DisplayConfig {
             simplified_mode: false,
             respect_epub_css: true,
             image_protocol: "auto".to_string(),
+            widescreen: false,
         }
     }
 }

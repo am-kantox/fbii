@@ -28,6 +28,7 @@ pub enum KeyAction {
     ToggleSimpleMode,
     ToggleCss,
     ToggleJustify,
+    ToggleWidescreen,
     Select,
 }
 
@@ -57,6 +58,7 @@ impl std::fmt::Display for KeyAction {
             KeyAction::ToggleSimpleMode => "toggle_simple_mode",
             KeyAction::ToggleCss => "toggle_css",
             KeyAction::ToggleJustify => "toggle_justify",
+            KeyAction::ToggleWidescreen => "toggle_widescreen",
             KeyAction::Select => "select",
         };
         write!(f, "{}", name)
@@ -118,6 +120,7 @@ impl Default for KeyMap {
         bindings.insert("S".to_string(), KeyAction::ToggleSimpleMode);
         bindings.insert("C".to_string(), KeyAction::ToggleCss);
         bindings.insert("J".to_string(), KeyAction::ToggleJustify);
+        bindings.insert("W".to_string(), KeyAction::ToggleWidescreen);
         Self { bindings }
     }
 }

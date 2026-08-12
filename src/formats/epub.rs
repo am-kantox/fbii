@@ -284,10 +284,32 @@ fn parse_xhtml_chapter(xhtml_str: &str, content: &mut Vec<Block>) {
                 .unwrap_or(root);
             parse_html_nodes(body, content);
         }
-        Err(e) => {
-            eprintln!("XHTML parse error: {}", e);
+        Err(_) => {
+            let stripped = strip_html_tags(&clean_str);
+            for line in stripped.lines() {
+                let trimmed = line.trim();
+                if !trimmed.is_empty() {
+                    content.push(Block::Paragraph(vec![Inline::Text(trimmed.to_string())]));
+                }
+            }
         }
     }
+}
+
+fn strip_html_tags(html: &str) -> String {
+    let mut in_tag = false;
+    let mut result = String::new();
+    for c in html.chars() {
+        if c == '<' {
+            in_tag = true;
+        } else if c == '>' {
+            in_tag = false;
+            result.push(' ');
+        } else if !in_tag {
+            result.push(c);
+        }
+    }
+    result
 }
 
 fn parse_html_nodes(node: Node, content: &mut Vec<Block>) {
