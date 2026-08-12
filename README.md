@@ -2,9 +2,9 @@
   <img src="images/logo-silver-500x500.png" alt="FBII logo" width="200">
 </p>
 
-# FBII (Rust Port)
+# FBII
 
-**`fbii`** is a high-performance terminal e-book reader for **FB2**, **FB2-in-ZIP**, and **EPUB (2.x / 3.x)** written in Rust with Vim-like navigation controls.
+**`fbii`** is a high-performance terminal e-book reader for **FB2**, **FB2-in-ZIP**, and **EPUB (2.x / 3.x)** written in Rust with Vim-like navigation controls. It is a Rust port of [`tabook`](https://github.com/zsh-ncursed/tabook) with some opinionated goodnesses added (like inplace image rendering.)
 
 ## Features
 
@@ -14,7 +14,7 @@
 - **Library Management**: Recursively scan a directory to bulk-import books (`:scan <dir>` or `--scan-dir`), delete books/bookmarks, sort the library (recent/title/author), and live-filter the library list.
 - **Layout & Unicode Wrapping**: `unicode-width` line wrapping with custom measure limits, configurable line/paragraph spacing, and hyphenation.
 - **Full-Text Search Index**: Fast NFKD Unicode-normalized search (stripping accents & diacritics), with correct word wrapping for space-free scripts (CJK, etc.).
-- **Inline Image Rendering**: Images are rendered directly in the scrollable text flow (not just a placeholder) using whatever terminal graphics protocol is available (Kitty, iTerm2, Sixel, or Unicode half-blocks) via `ratatui-image`; `v` zooms the current image to full size. Book cover art is also shown in the Info modal (`i`).
+- **Inplace Image Rendering**: Images are rendered directly inside the scrollable text layout at their exact reading position using Kitty, Sixel, iTerm2, or Unicode half-blocks; press `v` to zoom any image to full size. Book cover art is also displayed in the Info modal (`i`).
 - **CSS-Aware EPUB Parsing**: Content marked with an inline `display: none` style is hidden by default; toggle `C` to reveal it.
 - **Reading Stats**: Session count and total pages read are tracked per book and shown in the Info modal.
 - **OPDS Catalogs**: Browse and download books from OPDS feeds; custom catalogs are persisted to the config file.
@@ -70,8 +70,8 @@ fbii /path/to/book.epub
 # Launch library view
 fbii --library
 
-# Custom theme
-fbii --theme monokai /path/to/book.fb2
+# Custom theme & explicit image protocol
+fbii --theme monokai --image-protocol kitty /path/to/book.epub
 
 # Specify config file
 fbii --config ~/.config/fbii/config.toml
@@ -125,6 +125,7 @@ Press `:` to enter command mode. Supported commands include:
 | `:bookmarks` (or `:bl`) | Show the bookmarks modal |
 | `:toc` | Show the Table of Contents modal |
 | `:info` | Show book metadata |
+| `:protocol <auto\|kitty\|sixel\|iterm2\|halfblocks\|none>` | Switch image graphics protocol dynamically |
 | `:theme <name>` | Switch theme |
 | `:themes` | Open the theme picker |
 | `:opds` | Open the default OPDS catalog (Project Gutenberg) |
@@ -134,6 +135,41 @@ Press `:` to enter command mode. Supported commands include:
 | `:config` | Open `config.toml` in `$EDITOR`/`$VISUAL` (falls back to `nano`) |
 | `:quit` (or `:q`) | Back to library / quit |
 | `:quitall` (or `:qa`) | Quit immediately |
+
+## Inplace Image Rendering & Terminal Graphics Compatibility
+
+`fbii` features native **inplace inline image rendering**: images inside EPUB and FB2 books are rendered directly inside the scrollable text layout at their exact position in the book, reserving vertical viewport space in real-time. Pressing `v` opens a high-resolution full-screen modal zoom viewer.
+
+### Terminal Graphics Compatibility Guide
+
+`fbii` supports high-resolution pixel rendering protocols as well as universal ANSI block fallbacks:
+
+| Protocol | Config Value | Rendering Description | Compatible Terminal Emulators |
+| :--- | :--- | :--- | :--- |
+| **Kitty Graphics** | `kitty` | High-resolution native pixel graphics | Kitty, Ghostty, WezTerm, Alacritty (with graphics plugin), Konsole |
+| **Sixel Graphics** | `sixel` | High-resolution bitmap graphics | Foot, XTerm, rxvt-unicode (sixel build), WezTerm, Contour, iTerm2 |
+| **iTerm2 Inline Images** | `iterm2` | High-resolution inline graphics | iTerm2, **Warp**, WezTerm, Mintty, Tabby |
+| **Unicode Half-Blocks** | `halfblocks` | ANSI-colored block character graphics (`▄` `▀` `█`) | Universal (works in *any* terminal emulator) |
+| **Disabled** | `none` | Clean single-line text label placeholder | Any terminal |
+
+### Changing Image Protocols
+
+- **CLI Option**: Override protocol when launching `fbii`:
+  ```bash
+  fbii --image-protocol kitty /path/to/book.epub
+  fbii --image-protocol sixel /path/to/book.fb2
+  ```
+- **In-App Command**: Switch rendering protocol on the fly while reading:
+  ```text
+  :protocol kitty
+  ```
+- **Config File**: Set your default protocol in `~/.config/fbii/config.toml`:
+  ```toml
+  [display]
+  image_protocol = "kitty"  # auto | kitty | sixel | iterm2 | halfblocks | none
+  ```
+
+When set to `auto` (default), `fbii` queries the terminal at startup to detect hardware graphics support, falling back to `halfblocks` if the terminal doesn't respond to graphics capability queries.
 
 ## Configuration
 
@@ -164,9 +200,3 @@ gutenberg = "https://www.gutenberg.org/ebooks/search.opds/"
 [keymap.bindings]
 # "j" = "scroll_down", etc. — see the default bindings above.
 ```
-
-`image_protocol` controls how embedded images are rendered, both inline in
-the text and in the full-size `v` zoom view: `auto` detects the terminal's
-capability (Kitty/iTerm2/Sixel, falling back to Unicode half-blocks); set an
-explicit value to override detection, or `none` to disable image rendering
-entirely (falling back to a text placeholder).

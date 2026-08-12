@@ -935,6 +935,17 @@ impl App {
         } else if let Some(theme_name) = cmd.strip_prefix("theme ") {
             self.config.theme = theme_name.trim().to_string();
             self.theme = Theme::get_by_name(theme_name.trim());
+        } else if let Some(proto) = cmd
+            .strip_prefix("image_protocol ")
+            .or_else(|| cmd.strip_prefix("image-protocol "))
+            .or_else(|| cmd.strip_prefix("protocol "))
+        {
+            let p_str = proto.trim().to_lowercase();
+            self.config.display.image_protocol = p_str.clone();
+            self.reader_view.image_cache.clear();
+            self.reader_view.image_state = None;
+            self.init_image_picker();
+            self.status_message = Some(format!("Image rendering protocol set to '{}'", p_str));
         } else if let Some(path_str) = cmd.strip_prefix("open ").or_else(|| cmd.strip_prefix("o "))
         {
             match crate::formats::parse_book_uri_async(path_str.trim()).await {
@@ -1097,20 +1108,20 @@ impl App {
             return;
         }
 
-        self.image_picker = match Picker::from_query_stdio() {
-            Ok(mut picker) => {
-                match self.config.display.image_protocol.as_str() {
-                    "kitty" => picker.set_protocol_type(ProtocolType::Kitty),
-                    "iterm2" => picker.set_protocol_type(ProtocolType::Iterm2),
-                    "sixel" => picker.set_protocol_type(ProtocolType::Sixel),
-                    "halfblocks" => picker.set_protocol_type(ProtocolType::Halfblocks),
-                    // "auto" or unrecognized: keep the detected protocol.
-                    _ => {}
-                }
-                Some(picker)
-            }
-            Err(_) => None,
+        let mut picker = match Picker::from_query_stdio() {
+            Ok(p) => p,
+            Err(_) => Picker::from_fontsize((8, 16)),
         };
+
+        match self.config.display.image_protocol.as_str() {
+            "kitty" => picker.set_protocol_type(ProtocolType::Kitty),
+            "iterm2" => picker.set_protocol_type(ProtocolType::Iterm2),
+            "sixel" => picker.set_protocol_type(ProtocolType::Sixel),
+            "halfblocks" => picker.set_protocol_type(ProtocolType::Halfblocks),
+            // "auto" or unrecognized: keep the detected protocol.
+            _ => {}
+        }
+        self.image_picker = Some(picker);
     }
 
     pub async fn run_tui(&mut self) -> Result<()> {
@@ -1154,12 +1165,23 @@ impl App {
                                 &self.theme,
                                 status_msg,
                                 self.image_picker.as_mut(),
+                                &self.search_matches,
+                                self.current_match_idx,
                             );
                         }
                     }
                     AppMode::SearchInput => {
                         if let (Some(book), Some(layout)) = (&self.active_book, &self.active_layout)
                         {
+                            let live_matches = if !self.input_buffer.is_empty() {
+                                self.search_index
+                                    .as_ref()
+                                    .map(|idx| idx.search(&self.input_buffer))
+                                    .unwrap_or_default()
+                            } else {
+                                self.search_matches.clone()
+                            };
+
                             self.reader_view.render(
                                 f,
                                 area,
@@ -1169,6 +1191,8 @@ impl App {
                                 &self.theme,
                                 status_msg,
                                 self.image_picker.as_mut(),
+                                &live_matches,
+                                0,
                             );
                             let chunks = ratatui::layout::Layout::default()
                                 .direction(ratatui::layout::Direction::Vertical)
@@ -1200,6 +1224,8 @@ impl App {
                                 &self.theme,
                                 status_msg,
                                 self.image_picker.as_mut(),
+                                &self.search_matches,
+                                self.current_match_idx,
                             );
                         } else {
                             self.library_view.render(
@@ -1246,6 +1272,8 @@ impl App {
                                 &self.theme,
                                 status_msg,
                                 self.image_picker.as_mut(),
+                                &self.search_matches,
+                                self.current_match_idx,
                             );
                         } else {
                             self.library_view.render(

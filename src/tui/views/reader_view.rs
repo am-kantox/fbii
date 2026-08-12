@@ -148,6 +148,8 @@ impl ReaderView {
         theme: &Theme,
         status_message: Option<&str>,
         mut image_picker: Option<&mut Picker>,
+        search_matches: &[crate::search::SearchMatch],
+        current_match_idx: usize,
     ) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -174,7 +176,12 @@ impl ReaderView {
             }
 
             let mut spans = Vec::new();
+            let mut span_start_char = line.char_start;
+
             for styled in &line.spans {
+                let span_len = styled.text.chars().count();
+                let span_end_char = span_start_char + span_len;
+
                 let mut style = theme.base_style();
                 if styled.bold {
                     style = style.add_modifier(Modifier::BOLD);
@@ -194,7 +201,63 @@ impl ReaderView {
                 if styled.code {
                     style = style.bg(theme.selection);
                 }
-                spans.push(Span::styled(styled.text.clone(), style));
+
+                let has_matches = search_matches
+                    .iter()
+                    .any(|m| m.char_start < span_end_char && m.char_end > span_start_char);
+
+                if !has_matches || span_len == 0 {
+                    spans.push(Span::styled(styled.text.clone(), style));
+                } else {
+                    let chars: Vec<char> = styled.text.chars().collect();
+                    let mut i = 0;
+                    while i < chars.len() {
+                        let char_pos = span_start_char + i;
+
+                        let is_active_match = search_matches
+                            .get(current_match_idx)
+                            .map_or(false, |m| char_pos >= m.char_start && char_pos < m.char_end);
+
+                        let is_any_match = search_matches
+                            .iter()
+                            .any(|m| char_pos >= m.char_start && char_pos < m.char_end);
+
+                        let mut j = i + 1;
+                        while j < chars.len() {
+                            let next_pos = span_start_char + j;
+                            let next_active = search_matches
+                                .get(current_match_idx)
+                                .map_or(false, |m| next_pos >= m.char_start && next_pos < m.char_end);
+                            let next_any = search_matches
+                                .iter()
+                                .any(|m| next_pos >= m.char_start && next_pos < m.char_end);
+
+                            if next_active != is_active_match || next_any != is_any_match {
+                                break;
+                            }
+                            j += 1;
+                        }
+
+                        let chunk_text: String = chars[i..j].iter().collect();
+                        let mut chunk_style = style;
+                        if is_active_match {
+                            chunk_style = chunk_style
+                                .bg(theme.accent)
+                                .fg(theme.background)
+                                .add_modifier(Modifier::BOLD);
+                        } else if is_any_match {
+                            chunk_style = chunk_style
+                                .bg(theme.highlight)
+                                .fg(theme.background)
+                                .add_modifier(Modifier::BOLD);
+                        }
+
+                        spans.push(Span::styled(chunk_text, chunk_style));
+                        i = j;
+                    }
+                }
+
+                span_start_char = span_end_char;
             }
             paragraph_lines.push(Line::from(spans));
         }
@@ -404,7 +467,7 @@ impl ReaderView {
     }
 
     fn render_help_modal(&mut self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let modal_area = centered_rect(65, 70, area);
+        let modal_area = centered_rect(65, 75, area);
         f.render_widget(Clear, modal_area);
 
         let help_text = r#" Keybindings:
@@ -418,16 +481,18 @@ impl ReaderView {
   :                Command mode (Up/Down for command history)
   t                Table of Contents
   b / B            Add / List Bookmarks (d to delete a bookmark)
-  v                Zoom the image at the cursor line to full size
-  W                Toggle Widescreen / Centered Column
-  J                Toggle Text Justification
-  S                Toggle Simplified Mode
-  C                Toggle CSS Styling
+  i                Book info (metadata, cover art, reading stats)
+  v                Zoom the image at cursor line to full size
+  R                Toggle recent books / Cycle sort order
+  J                Toggle text justification
+  W                Toggle wide screen / centered column
+  S                Toggle simplified mode
+  C                Toggle CSS styling
   q / Esc          Back / Quit
 
  Library view:
   d                Delete selected book
-  r                Cycle sort order (Recent/Title/Author)
+  r / R            Toggle recent books / Cycle sort order
   /                Filter library by title/author
   :scan <dir>      Recursively import books from a directory
 "#;

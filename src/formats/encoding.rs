@@ -55,4 +55,12 @@ mod tests {
         let decoded = decode_bytes(&win1251_bytes).unwrap();
         assert!(decoded.contains("Привет"));
     }
+
+    #[test]
+    fn test_iso_8859_1_xml_encoding_declaration() {
+        let (iso_bytes, _, _) = encoding_rs::ISO_8859_2
+            .encode("<?xml version=\"1.0\" encoding=\"iso-8859-1\"?><book>café</book>");
+        let decoded = decode_bytes(&iso_bytes).unwrap();
+        assert!(decoded.contains("café"));
+    }
 }

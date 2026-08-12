@@ -312,6 +312,8 @@ fn parse_block_element(node: Node) -> Option<Block> {
             if let Some(href) = node
                 .attribute(("http://www.w3.org/1999/xlink", "href"))
                 .or_else(|| node.attribute("href"))
+                .or_else(|| node.attribute("l:href"))
+                .or_else(|| node.attribute("src"))
             {
                 let key = href.trim_start_matches('#').to_string();
                 Some(Block::Image { key, alt: None })
@@ -384,6 +386,8 @@ fn parse_inlines(node: Node, out: &mut Vec<Inline>) {
                     if let Some(href) = child
                         .attribute(("http://www.w3.org/1999/xlink", "href"))
                         .or_else(|| child.attribute("href"))
+                        .or_else(|| child.attribute("l:href"))
+                        .or_else(|| child.attribute("src"))
                     {
                         let key = href.trim_start_matches('#').to_string();
                         out.push(Inline::Image { key, alt: None });

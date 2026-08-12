@@ -30,4 +30,8 @@ pub struct CliArgs {
     /// the library before starting
     #[arg(long, value_name = "DIR")]
     pub scan_dir: Option<PathBuf>,
+
+    /// Override image rendering graphics protocol (auto, kitty, sixel, iterm2, halfblocks, none)
+    #[arg(long = "image-protocol", value_name = "PROTOCOL")]
+    pub image_protocol: Option<String>,
 }

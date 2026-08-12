@@ -206,3 +206,51 @@ fn test_parse_book_uri_file_and_percent_decoding() {
 
     let _ = std::fs::remove_file(fb2_path);
 }
+
+#[test]
+fn test_fixtures_epub_embedded_image() {
+    let epub_path = Path::new("fixtures/test.epub");
+    let book = parse_book_file(epub_path).expect("fixtures/test.epub should parse successfully");
+
+    assert_eq!(book.metadata.title, "Test EPUB");
+    
+    // Check content has image block
+    let has_image_block = book.content.iter().any(|b| matches!(b, Block::Image { .. }));
+    assert!(has_image_block, "fixtures/test.epub should contain a Block::Image");
+
+    // Check resources has decodable image
+    assert!(!book.resources.is_empty(), "fixtures/test.epub should load image resources");
+    let img_bytes = book.resources.values().next().expect("Should have at least 1 resource");
+    let decoded = image::load_from_memory(img_bytes);
+    assert!(decoded.is_ok(), "Image resource in test.epub should be valid decodable image data");
+
+    // Check layout includes image key
+    let config = fbii::config::TypographyConfig::default();
+    let layout = fbii::renderer::BookLayout::build(&book, &config, false);
+    let has_layout_image = layout.lines.iter().any(|l| l.image_key.is_some());
+    assert!(has_layout_image, "BookLayout should include lines with image_key for test.epub");
+}
+
+#[test]
+fn test_fixtures_fb2_embedded_image() {
+    let fb2_path = Path::new("fixtures/test.fb2");
+    let book = parse_book_file(fb2_path).expect("fixtures/test.fb2 should parse successfully");
+
+    assert_eq!(book.metadata.title, "Test FB2");
+
+    // Check content has image block
+    let has_image_block = book.content.iter().any(|b| matches!(b, Block::Image { .. }));
+    assert!(has_image_block, "fixtures/test.fb2 should contain a Block::Image");
+
+    // Check resources has decodable binary object
+    assert!(book.resources.contains_key("binary001"), "fixtures/test.fb2 resources should contain 'binary001'");
+    let img_bytes = &book.resources["binary001"];
+    let decoded = image::load_from_memory(img_bytes);
+    assert!(decoded.is_ok(), "Binary object in test.fb2 should be valid decodable image data");
+
+    // Check layout includes image key
+    let config = fbii::config::TypographyConfig::default();
+    let layout = fbii::renderer::BookLayout::build(&book, &config, false);
+    let has_layout_image = layout.lines.iter().any(|l| l.image_key.as_deref() == Some("binary001"));
+    assert!(has_layout_image, "BookLayout should include lines with image_key='binary001' for test.fb2");
+}

@@ -102,7 +102,10 @@ pub fn parse_epub(path: &Path) -> Result<Book> {
     for (href, media_type) in manifest.values() {
         if media_type.starts_with("image/") {
             if let Ok(img_bytes) = read_zip_file(&mut archive, href) {
-                resources.insert(href.clone(), img_bytes);
+                resources.insert(href.clone(), img_bytes.clone());
+                if let Some(filename) = Path::new(href).file_name().and_then(|f| f.to_str()) {
+                    resources.insert(filename.to_string(), img_bytes);
+                }
             }
         }
     }
@@ -328,6 +331,13 @@ fn parse_html_nodes(node: Node, content: &mut Vec<Block>) {
         if has_inline_style_display_none(child) {
             let mut inner = Vec::new();
             parse_html_nodes(child, &mut inner);
+            if inner.is_empty() {
+                let mut inlines = Vec::new();
+                parse_html_inlines(child, &mut inlines);
+                if !inlines.is_empty() {
+                    inner.push(Block::Paragraph(inlines));
+                }
+            }
             content.push(Block::Hidden(inner));
             continue;
         }

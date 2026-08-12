@@ -18,6 +18,9 @@ async fn main() -> Result<()> {
     if let Some(theme_override) = args.theme {
         config.theme = theme_override;
     }
+    if let Some(protocol_override) = args.image_protocol {
+        config.display.image_protocol = protocol_override;
+    }
 
     let db_path = config
         .db_path

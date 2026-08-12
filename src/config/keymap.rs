@@ -129,6 +129,7 @@ impl Default for KeyMap {
         bindings.insert("W".to_string(), KeyAction::ToggleWidescreen);
         bindings.insert("d".to_string(), KeyAction::Delete);
         bindings.insert("r".to_string(), KeyAction::CycleSort);
+        bindings.insert("R".to_string(), KeyAction::CycleSort);
         bindings.insert("v".to_string(), KeyAction::ViewImage);
         Self { bindings }
     }

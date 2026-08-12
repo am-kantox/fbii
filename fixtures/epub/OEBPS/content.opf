@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="uid" version="3.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="uid">test-epub</dc:identifier>
+    <dc:title>Test EPUB</dc:title>
+  </metadata>
+  <manifest>
+    <item id="html" href="content.html" media-type="application/xhtml+xml"/>
+    <item id="img" href="image.jpg" media-type="image/jpeg"/>
+  </manifest>
+  <spine>
+    <itemref idref="html"/>
+  </spine>
+</package>   
