@@ -240,23 +240,24 @@ impl ReaderView {
     }
 
     fn render_help_modal(&mut self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let modal_area = centered_rect(60, 60, area);
+        let modal_area = centered_rect(65, 70, area);
         f.render_widget(Clear, modal_area);
 
         let help_text = r#" Keybindings:
- j / Down         Scroll down 1 line
- k / Up           Scroll up 1 line
- Ctrl+D           Scroll down 1/2 page
- Ctrl+U           Scroll up 1/2 page
- gg               Go to top
- G                Go to bottom
- /                Search query
- n / N            Next / Previous match
- t                Table of Contents
- b                Add Bookmark
- B                List Bookmarks
- S                Toggle Simplified Mode
- q                Back / Quit
+  j / Down         Scroll down 1 line
+  k / Up           Scroll up 1 line
+  Ctrl+D / Ctrl+U  Scroll 1/2 page down / up
+  gg / G           Go to top / bottom
+  /                Search query (Up/Down for search history)
+  n / N            Next / Previous match
+  :                Command mode (Up/Down for command history)
+  t                Table of Contents
+  b / B            Add / List Bookmarks
+  W                Toggle Widescreen / Centered Column
+  J                Toggle Text Justification
+  S                Toggle Simplified Mode
+  C                Toggle CSS Styling
+  q / Esc          Back / Quit
 "#;
 
         let paragraph = Paragraph::new(help_text).style(theme.base_style()).block(

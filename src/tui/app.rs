@@ -192,16 +192,13 @@ impl App {
             KeyAction::ListBookmarks => {
                 if self.mode == AppMode::Reader {
                     if let Some(book) = &self.active_book {
-                        let book_id = book.id.clone();
-                        let db = self.db.clone();
-                        let (tx, rx) = tokio::sync::oneshot::channel();
-                        tokio::spawn(async move {
-                            if let Ok(bms) = db.list_bookmarks(&book_id).await {
-                                let _ = tx.send(bms);
-                            }
-                        });
-                        if let Ok(bms) = rx.blocking_recv() {
+                        if let Ok(bms) = self.db.list_bookmarks(&book.id).await {
                             self.reader_view.bookmark_items = bms;
+                            if !self.reader_view.bookmark_items.is_empty()
+                                && self.reader_view.bookmark_state.selected().is_none()
+                            {
+                                self.reader_view.bookmark_state.select(Some(0));
+                            }
                             self.reader_view.show_bookmarks = !self.reader_view.show_bookmarks;
                         }
                     }
