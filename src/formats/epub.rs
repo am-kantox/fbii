@@ -388,7 +388,8 @@ fn parse_html_inlines(node: Node, out: &mut Vec<Inline>) {
         if child.is_text() {
             if let Some(t) = child.text() {
                 if !t.is_empty() {
-                    out.push(Inline::Text(t.to_string()));
+                    let clean = t.replace('\r', "").replace(['\n', '\t'], " ");
+                    out.push(Inline::Text(clean));
                 }
             }
         } else if child.is_element() {

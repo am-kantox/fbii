@@ -60,6 +60,9 @@ impl ReaderView {
             .constraints([Constraint::Min(5), Constraint::Length(1)])
             .split(area);
 
+        f.render_widget(ratatui::widgets::Clear, chunks[0]);
+        f.render_widget(Block::default().style(theme.base_style()), chunks[0]);
+
         let viewport_height = chunks[0].height as usize;
         let visible_lines = layout
             .lines
@@ -98,6 +101,10 @@ impl ReaderView {
                 spans.push(Span::styled(styled.text.clone(), style));
             }
             paragraph_lines.push(Line::from(spans));
+        }
+
+        while paragraph_lines.len() < viewport_height {
+            paragraph_lines.push(Line::from(""));
         }
 
         let reader_area = if config.display.widescreen {
