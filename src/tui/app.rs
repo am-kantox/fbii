@@ -117,8 +117,8 @@ impl App {
         Ok(())
     }
 
-    pub fn open_opds_url(&mut self, url: &str) -> Result<()> {
-        let response = reqwest::blocking::get(url).map_err(|e| {
+    pub async fn open_opds_url(&mut self, url: &str) -> Result<()> {
+        let response = reqwest::get(url).await.map_err(|e| {
             crate::utils::AppError::Parse(format!("Failed to fetch OPDS feed: {}", e))
         })?;
 
@@ -129,7 +129,7 @@ impl App {
             )));
         }
 
-        let xml_str = response.text().map_err(|e| {
+        let xml_str = response.text().await.map_err(|e| {
             crate::utils::AppError::Parse(format!("Failed to read OPDS feed: {}", e))
         })?;
 
@@ -628,7 +628,7 @@ impl App {
                                     crossterm::event::KeyCode::Enter => {
                                         let path_str = self.input_buffer.trim().to_string();
                                         self.input_buffer.clear();
-                                        match crate::formats::parse_book_uri(&path_str) {
+                                        match crate::formats::parse_book_uri_async(&path_str).await {
                                             Ok(book) => {
                                                 self.status_message = None;
                                                 self.load_book(book).await;
@@ -805,7 +805,7 @@ impl App {
                                             self.config.theme = theme_name.trim().to_string();
                                             self.theme = Theme::get_by_name(theme_name.trim());
                                         } else if let Some(path_str) = cmd.strip_prefix("open ").or_else(|| cmd.strip_prefix("o ")) {
-                                            match crate::formats::parse_book_uri(path_str.trim()) {
+                                            match crate::formats::parse_book_uri_async(path_str.trim()).await {
                                                 Ok(book) => {
                                                     self.status_message = None;
                                                     self.load_book(book).await;
@@ -828,7 +828,7 @@ impl App {
                                             self.handle_action(KeyAction::ToggleSimpleMode).await;
                                         } else if cmd == "opds" || cmd == "opds open" {
                                             let default_url = "https://www.gutenberg.org/ebooks/search.opds/".to_string();
-                                            if let Err(e) = self.open_opds_url(&default_url) {
+                                            if let Err(e) = self.open_opds_url(&default_url).await {
                                                 self.status_message = Some(format!("{}", e));
                                             }
                                         } else if let Some(rest) = cmd.strip_prefix("opds add ") {
@@ -844,7 +844,7 @@ impl App {
                                         } else if let Some(rest) = cmd.strip_prefix("opds open ").or_else(|| cmd.strip_prefix("opds ")) {
                                             let target = rest.trim();
                                             let url = self.opds_catalogs.get(target).cloned().unwrap_or_else(|| target.to_string());
-                                            if let Err(e) = self.open_opds_url(&url) {
+                                            if let Err(e) = self.open_opds_url(&url).await {
                                                 self.status_message = Some(format!("{}", e));
                                             }
                                         } else if cmd == "help" || cmd == "h" {
@@ -903,12 +903,12 @@ impl App {
                                             if let Some(entry) = feed.entries.get(idx) {
                                                 match &entry.link {
                                                     crate::opds::OpdsLinkType::Catalog(url) => {
-                                                        if let Err(e) = self.open_opds_url(url) {
+                                                        if let Err(e) = self.open_opds_url(url).await {
                                                             self.status_message = Some(format!("{}", e));
                                                         }
                                                     }
                                                     crate::opds::OpdsLinkType::Acquisition(url) => {
-                                                        match crate::formats::parse_book_uri(url) {
+                                                        match crate::formats::parse_book_uri_async(url).await {
                                                             Ok(book) => {
                                                                 let _ = self.db.upsert_book(&book, 0, 0.0).await;
                                                                 self.load_book(book).await;

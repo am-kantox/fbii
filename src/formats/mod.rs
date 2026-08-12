@@ -14,6 +14,50 @@ use std::path::Path;
 
 use sha1::Digest;
 
+pub async fn parse_book_uri_async(uri_str: &str) -> Result<Book> {
+    let uri_str = uri_str.trim();
+
+    if uri_str.starts_with("http://") || uri_str.starts_with("https://") {
+        let response = reqwest::get(uri_str)
+            .await
+            .map_err(|e| AppError::Parse(format!("Failed to download URI '{}': {}", uri_str, e)))?;
+
+        if !response.status().is_success() {
+            return Err(AppError::Parse(format!(
+                "HTTP error {} downloading URI '{}'",
+                response.status(),
+                uri_str
+            )));
+        }
+
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|e| AppError::Parse(format!("Failed to read HTTP response bytes: {}", e)))?;
+
+        let ext = if uri_str.to_lowercase().contains(".fb2.zip") {
+            ".fb2.zip"
+        } else if uri_str.to_lowercase().contains(".epub") {
+            ".epub"
+        } else if uri_str.to_lowercase().contains(".fb2") {
+            ".fb2"
+        } else {
+            ".tmp"
+        };
+
+        let temp_dir = std::env::temp_dir();
+        let hash = format!("{:x}", sha1::Sha1::digest(&bytes));
+        let temp_path = temp_dir.join(format!("fbii_remote_{}{}", hash, ext));
+        std::fs::write(&temp_path, &bytes)?;
+
+        let book = parse_book_file(&temp_path)?;
+        let _ = std::fs::remove_file(temp_path);
+        Ok(book)
+    } else {
+        parse_book_uri(uri_str)
+    }
+}
+
 pub fn parse_book_uri(uri_str: &str) -> Result<Book> {
     let uri_str = uri_str.trim();
 
