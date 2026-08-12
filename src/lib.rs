@@ -2,6 +2,7 @@ pub mod cli;
 pub mod config;
 pub mod db;
 pub mod formats;
+pub mod opds;
 pub mod renderer;
 pub mod search;
 pub mod themes;

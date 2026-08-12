@@ -25,6 +25,7 @@ pub enum AppMode {
     SearchInput,
     CommandInput,
     OpenFileInput,
+    OpdsBrowser,
 }
 
 pub struct App {
@@ -43,6 +44,9 @@ pub struct App {
     pub key_dispatcher: KeymapDispatcher,
     pub library_view: LibraryView,
     pub reader_view: ReaderView,
+    pub opds_view: crate::tui::views::OpdsView,
+    pub opds_feed_stack: Vec<crate::opds::OpdsFeed>,
+    pub opds_catalogs: std::collections::HashMap<String, String>,
     pub status_message: Option<String>,
     pub command_history: Vec<String>,
     pub search_history: Vec<String>,
@@ -54,6 +58,12 @@ pub struct App {
 impl App {
     pub fn new(config: Config, db: LibraryDb) -> Self {
         let theme = Theme::get_by_name(&config.theme);
+        let mut opds_catalogs = std::collections::HashMap::new();
+        opds_catalogs.insert(
+            "gutenberg".to_string(),
+            "https://www.gutenberg.org/ebooks/search.opds/".to_string(),
+        );
+
         Self {
             mode: AppMode::Library,
             config,
@@ -68,6 +78,9 @@ impl App {
             key_dispatcher: KeymapDispatcher::new(),
             library_view: LibraryView::new(),
             reader_view: ReaderView::new(),
+            opds_view: crate::tui::views::OpdsView::new(),
+            opds_feed_stack: Vec::new(),
+            opds_catalogs,
             input_buffer: String::new(),
             bookmarks: Vec::new(),
             status_message: None,
@@ -101,6 +114,29 @@ impl App {
 
     pub async fn refresh_library(&mut self) -> Result<()> {
         self.library_books = self.db.list_books().await?;
+        Ok(())
+    }
+
+    pub fn open_opds_url(&mut self, url: &str) -> Result<()> {
+        let response = reqwest::blocking::get(url).map_err(|e| {
+            crate::utils::AppError::Parse(format!("Failed to fetch OPDS feed: {}", e))
+        })?;
+
+        if !response.status().is_success() {
+            return Err(crate::utils::AppError::Parse(format!(
+                "HTTP error {} fetching OPDS feed",
+                response.status()
+            )));
+        }
+
+        let xml_str = response.text().map_err(|e| {
+            crate::utils::AppError::Parse(format!("Failed to read OPDS feed: {}", e))
+        })?;
+
+        let feed = crate::opds::parse_opds_feed(&xml_str, url)?;
+        self.opds_feed_stack.push(feed);
+        self.opds_view.state.select(Some(0));
+        self.mode = AppMode::OpdsBrowser;
         Ok(())
     }
 
@@ -556,6 +592,11 @@ impl App {
                             chunks[1].y,
                         ));
                     }
+                    AppMode::OpdsBrowser => {
+                        if let Some(feed) = self.opds_feed_stack.last() {
+                            self.opds_view.render(f, area, feed, &self.theme);
+                        }
+                    }
                 }
             })?;
 
@@ -783,12 +824,33 @@ impl App {
                                             self.reader_view.show_toc = true;
                                         } else if cmd == "info" || cmd == "i" {
                                             self.reader_view.show_info = true;
+                                        } else if cmd == "simplified" || cmd == "simple" {
+                                            self.handle_action(KeyAction::ToggleSimpleMode).await;
+                                        } else if cmd == "opds" || cmd == "opds open" {
+                                            let default_url = "https://www.gutenberg.org/ebooks/search.opds/".to_string();
+                                            if let Err(e) = self.open_opds_url(&default_url) {
+                                                self.status_message = Some(format!("{}", e));
+                                            }
+                                        } else if let Some(rest) = cmd.strip_prefix("opds add ") {
+                                            let parts: Vec<&str> = rest.split_whitespace().collect();
+                                            if parts.len() >= 2 {
+                                                let name = parts[0].to_string();
+                                                let url = parts[1].to_string();
+                                                self.opds_catalogs.insert(name.clone(), url);
+                                                self.status_message = Some(format!("Added OPDS catalog '{}'", name));
+                                            } else {
+                                                self.status_message = Some("Usage: :opds add <name> <url>".to_string());
+                                            }
+                                        } else if let Some(rest) = cmd.strip_prefix("opds open ").or_else(|| cmd.strip_prefix("opds ")) {
+                                            let target = rest.trim();
+                                            let url = self.opds_catalogs.get(target).cloned().unwrap_or_else(|| target.to_string());
+                                            if let Err(e) = self.open_opds_url(&url) {
+                                                self.status_message = Some(format!("{}", e));
+                                            }
                                         } else if cmd == "help" || cmd == "h" {
                                             self.reader_view.show_help = true;
                                         } else if cmd == "widescreen" || cmd == "wide" {
                                             self.handle_action(KeyAction::ToggleWidescreen).await;
-                                        } else if cmd == "simple" || cmd == "s" {
-                                            self.handle_action(KeyAction::ToggleSimpleMode).await;
                                         } else if cmd == "css" {
                                             self.handle_action(KeyAction::ToggleCss).await;
                                         } else if let Ok(line_num) = cmd.parse::<usize>() {
@@ -817,6 +879,64 @@ impl App {
                                     }
                                     crossterm::event::KeyCode::Char(c) => {
                                         self.input_buffer.push(c);
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            AppMode::OpdsBrowser => {
+                                match key_event.code {
+                                    crossterm::event::KeyCode::Char('j') | crossterm::event::KeyCode::Down => {
+                                        if let Some(feed) = self.opds_feed_stack.last() {
+                                            let idx = self.opds_view.state.selected().unwrap_or(0);
+                                            if idx + 1 < feed.entries.len() {
+                                                self.opds_view.state.select(Some(idx + 1));
+                                            }
+                                        }
+                                    }
+                                    crossterm::event::KeyCode::Char('k') | crossterm::event::KeyCode::Up => {
+                                        let idx = self.opds_view.state.selected().unwrap_or(0);
+                                        self.opds_view.state.select(Some(idx.saturating_sub(1)));
+                                    }
+                                    crossterm::event::KeyCode::Enter => {
+                                        if let Some(feed) = self.opds_feed_stack.last().cloned() {
+                                            let idx = self.opds_view.state.selected().unwrap_or(0);
+                                            if let Some(entry) = feed.entries.get(idx) {
+                                                match &entry.link {
+                                                    crate::opds::OpdsLinkType::Catalog(url) => {
+                                                        if let Err(e) = self.open_opds_url(url) {
+                                                            self.status_message = Some(format!("{}", e));
+                                                        }
+                                                    }
+                                                    crate::opds::OpdsLinkType::Acquisition(url) => {
+                                                        match crate::formats::parse_book_uri(url) {
+                                                            Ok(book) => {
+                                                                let _ = self.db.upsert_book(&book, 0, 0.0).await;
+                                                                self.load_book(book).await;
+                                                            }
+                                                            Err(e) => {
+                                                                self.status_message = Some(format!("Download error: {}", e));
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    crossterm::event::KeyCode::Char('/') => {
+                                        self.input_buffer.clear();
+                                        self.mode = AppMode::SearchInput;
+                                    }
+                                    crossterm::event::KeyCode::Esc | crossterm::event::KeyCode::Char('q') => {
+                                        self.opds_feed_stack.pop();
+                                        if self.opds_feed_stack.is_empty() {
+                                            self.mode = if self.active_book.is_some() {
+                                                AppMode::Reader
+                                            } else {
+                                                AppMode::Library
+                                            };
+                                        } else {
+                                            self.opds_view.state.select(Some(0));
+                                        }
                                     }
                                     _ => {}
                                 }
