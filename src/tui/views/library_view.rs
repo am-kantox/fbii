@@ -70,12 +70,8 @@ impl LibraryView {
 
         match self.sort_mode {
             LibrarySortMode::RecentlyUpdated => {}
-            LibrarySortMode::Title => {
-                visible.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()))
-            }
-            LibrarySortMode::Author => {
-                visible.sort_by(|a, b| a.authors.to_lowercase().cmp(&b.authors.to_lowercase()))
-            }
+            LibrarySortMode::Title => visible.sort_by_key(|a| a.title.to_lowercase()),
+            LibrarySortMode::Author => visible.sort_by_key(|a| a.authors.to_lowercase()),
         }
 
         visible

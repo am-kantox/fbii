@@ -199,11 +199,9 @@ fn parse_epub_metadata(node: Node, metadata: &mut Metadata, cover_id: &mut Optio
                     metadata.annotation = Some(d.trim().to_string());
                 }
             }
-            "meta" => {
-                if child.attribute("name") == Some("cover") {
-                    if let Some(content) = child.attribute("content") {
-                        *cover_id = Some(content.to_string());
-                    }
+            "meta" if child.attribute("name") == Some("cover") => {
+                if let Some(content) = child.attribute("content") {
+                    *cover_id = Some(content.to_string());
                 }
             }
             _ => {}

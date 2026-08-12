@@ -132,10 +132,9 @@ fn parse_opds_entry(node: Node, base_url: &str) -> Option<OpdsEntry> {
 
     let link = if let Some(acq) = acq_link {
         OpdsLinkType::Acquisition(acq)
-    } else if let Some(cat) = catalog_link {
-        OpdsLinkType::Catalog(cat)
     } else {
-        return None;
+        let cat = catalog_link?;
+        OpdsLinkType::Catalog(cat)
     };
 
     Some(OpdsEntry {
